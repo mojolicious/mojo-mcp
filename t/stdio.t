@@ -12,7 +12,7 @@ use lib curfile->dirname->child('lib')->to_string;
 use MCPStdioTest;
 
 my $test = MCPStdioTest->new;
-$test->run('perl', curfile->dirname->child('apps', 'stdio.pl')->to_string);
+$test->run($^X, curfile->dirname->child('apps', 'stdio.pl')->to_string);
 
 subtest 'Initialization' => sub {
   my $res = $test->request(initialize =>
