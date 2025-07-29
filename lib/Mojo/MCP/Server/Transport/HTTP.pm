@@ -3,9 +3,11 @@ use Mojo::Base 'Mojo::MCP::Server::Transport', -signatures;
 
 use Crypt::Misc qw(random_v4uuid);
 use Mojo::JSON  qw(to_json true);
+use Mojo::Util  qw(dumper);
+
+use constant DEBUG => $ENV{MOJO_MCP_DEBUG} || 0;
 
 has sessions => sub { {} };
-has 'server';
 
 sub handle_request ($self, $c) {
   my $method = $c->req->method;
@@ -22,6 +24,13 @@ sub _cleanup_session ($self, $session_id) {
 
 sub _extract_session_id ($self, $c) { return $c->req->headers->header('Mcp-Session-Id') }
 
+sub _handle ($self, $data) {
+  warn "-- MCP Request\n@{[dumper($data)]}\n" if DEBUG;
+  my $result = $self->server->handle($data);
+  warn "-- MCP Response\n@{[dumper($result)]}\n" if DEBUG && $result;
+  return $result;
+}
+
 sub _handle_delete ($self, $c) {
   return $self->_respond_missing_session_id($c) unless my $session_id = $self->_extract_session_id($c);
   $self->_cleanup_session($session_id);
@@ -37,7 +46,7 @@ sub _handle_get ($self, $c) {
 sub _handle_initialization ($self, $c, $data) {
   my $session_id = random_v4uuid;
   $self->sessions->{$session_id} = {sse => undef};
-  my $result = $self->server->handle($data);
+  my $result = $self->_handle($data);
   $c->res->headers->header('Mcp-Session-Id' => $session_id);
   $c->render(json => $result, status => 200);
 }
@@ -56,7 +65,7 @@ sub _handle_regular_request ($self, $c, $data, $session_id) {
   return $c->render(json => {error => 'Invalid session ID'}, status => 400)
     if $session_id && !$self->sessions->{$session_id};
 
-  return $c->render(data => '', status => 202) unless defined(my $result = $self->server->handle($data));
+  return $c->render(data => '', status => 202) unless defined(my $result = $self->_handle($data));
 
   if ($session_id && $self->_send($result, $session_id)) { $c->render(json => {accepted => true}, status => 200) }
   else                                                   { $c->render(json => $result, status => 200) }

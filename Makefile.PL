@@ -7,7 +7,7 @@ use utf8;
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-  NAME         => 'Mojo::MCPG',
+  NAME         => 'Mojo::MCP',
   VERSION_FROM => 'lib/Mojo/MCP.pm',
   ABSTRACT     => 'Mojolicious ♥ MCP',
   AUTHOR       => 'Sebastian Riedel <sri@cpan.org>',
@@ -20,7 +20,7 @@ WriteMakefile(
     resources      => {
       bugtracker => {web => 'https://github.com/mojolicious/mojo-mcp/issues'},
       homepage   => 'https://mojolicious.org',
-      license    => ['http://www.opensource.org/licenses/artistic-license-2.0'],
+      license    => ['http://www.opensource.org/licenses/mit'],
       repository => {
         type => 'git',
         url  => 'https://github.com/mojolicious/mojo-mcp.git',
@@ -29,6 +29,6 @@ WriteMakefile(
       x_IRC => {url => 'irc://irc.libera.chat/#mojo', web => 'https://web.libera.chat/#mojo'}
     },
   },
-  PREREQ_PM => {'CryptX' => '0.087', 'JSON::Validator' => '5.15', Mojolicious => '9.41'},
+  PREREQ_PM => {'CryptX' => '0.087', 'IPC::Run' => '20231003.0', 'JSON::Validator' => '5.15', Mojolicious => '9.41'},
   test      => {TESTS    => 't/*.t t/*/*.t'}
 );

@@ -3,11 +3,10 @@ use Mojo::Base -base, -signatures;
 
 use List::Util           qw(first);
 use Mojo::JSON           qw(false true);
-use Mojo::MCP::Constants qw(METHOD_NOT_FOUND);
+use Mojo::MCP::Constants qw(INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION);
 use Mojo::MCP::Server::Transport::HTTP;
+use Mojo::MCP::Server::Transport::Stdio;
 use Mojo::MCP::Tool;
-
-use constant PROTOCOL_VERSION => '2025-03-26';
 
 has name  => 'MojoServer';
 has tools => sub { [] };
@@ -15,32 +14,41 @@ has 'transport';
 has version => '1.0.0';
 
 sub handle ($self, $request) {
-  my $id     = $request->{id};
-  my $method = $request->{method};
+  return _jsonrpc_error(PARSE_ERROR, 'Invalid JSON-RPC request') unless ref $request eq 'HASH';
+  return _jsonrpc_error(INVALID_REQUEST, 'Missing JSON-RPC method') unless my $method = $request->{method};
 
-  if ($method eq 'initialize') {
-    my $result = $self->_handle_initialize($request->{params} // {});
-    return _jsonrpc_response($result, $id);
-  }
-  elsif ($method eq 'tools/list') {
-    my $result = $self->_handle_tools_list;
-    return _jsonrpc_response($result, $id);
-  }
-  elsif ($method eq 'tools/call') {
-    my $result = $self->_handle_tools_call($request->{params} // {});
-    return _jsonrpc_response($result, $id);
+  # Requests
+  if (defined(my $id = $request->{id})) {
+
+    if ($method eq 'initialize') {
+      my $result = $self->_handle_initialize($request->{params} // {});
+      return _jsonrpc_response($result, $id);
+    }
+    elsif ($method eq 'tools/list') {
+      my $result = $self->_handle_tools_list;
+      return _jsonrpc_response($result, $id);
+    }
+    elsif ($method eq 'tools/call') {
+      my $result = $self->_handle_tools_call($request->{params} // {});
+      return _jsonrpc_response($result, $id);
+    }
+
+    # Method not found
+    return _jsonrpc_error(METHOD_NOT_FOUND, "Method '$method' not found", $id);
   }
 
-  # Ignore unknown notifications
-  elsif ($method =~ /^notifications\//) { return undef }
-
-  # Method not found
-  return _jsonrpc_error(METHOD_NOT_FOUND, "Method '$method' not found", $id);
+  # Notifications (ignored for now)
+  return undef;
 }
 
 sub to_action ($self) {
   $self->transport(my $http = Mojo::MCP::Server::Transport::HTTP->new(server => $self));
   return sub ($c) { $http->handle_request($c) };
+}
+
+sub to_stdio ($self) {
+  $self->transport(my $stdio = Mojo::MCP::Server::Transport::Stdio->new(server => $self));
+  $self->transport->handle_requests;
 }
 
 sub tool ($self, %args) {

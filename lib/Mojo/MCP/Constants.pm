@@ -1,8 +1,13 @@
 package Mojo::MCP::Constants;
 use Mojo::Base 'Exporter';
 
-use constant METHOD_NOT_FOUND => -32601;
+use constant {
+  INVALID_REQUEST  => -32600,
+  METHOD_NOT_FOUND => -32601,
+  PARSE_ERROR      => -32700,
+  PROTOCOL_VERSION => '2025-06-18'
+};
 
-our @EXPORT_OK = qw(METHOD_NOT_FOUND);
+our @EXPORT_OK = qw(INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION);
 
 1;

@@ -1,5 +1,15 @@
-use Mojolicious::Lite -signatures;
-
+#
+# This example demonstrates a simple MCP server using stdio
+#
+# mcp.json:
+# {
+#   "mcpServers": {
+#     "mojo": {
+#       "command": "/home/kraih/mojo-mcp/examples/echo_stdio.pl"
+#     }
+#   }
+# }
+#
 use Mojo::MCP::Server;
 
 my $server = Mojo::MCP::Server->new;
@@ -12,6 +22,4 @@ $server->tool(
   }
 );
 
-any '/mcp' => $server->to_action;
-
-app->start;
+$server->to_stdio;
