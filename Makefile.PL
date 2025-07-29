@@ -1,4 +1,4 @@
-use 5.016;
+use 5.020;
 
 use strict;
 use warnings;
@@ -16,7 +16,7 @@ WriteMakefile(
     dynamic_config => 0,
     'meta-spec'    => {version   => 2},
     no_index       => {directory => ['examples', 't']},
-    prereqs        => {runtime   => {requires => {perl => '5.016'}}},
+    prereqs        => {runtime   => {requires => {perl => '5.020'}}},
     resources      => {
       bugtracker => {web => 'https://github.com/mojolicious/mojo-mcp/issues'},
       homepage   => 'https://mojolicious.org',
