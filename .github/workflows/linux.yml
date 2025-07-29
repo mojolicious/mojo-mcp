@@ -28,5 +28,3 @@ jobs:
           cpanm -n --installdeps .
       - name: Run tests
         run: prove -l t
-        env:
-          TEST_STDIO: 1
