@@ -7,7 +7,7 @@ has input_schema => sub { {} };
 has name         => 'tool';
 
 sub call ($self, $args) {
-  return $self->code->($args);
+  return $self->code->($self, $args);
 }
 
 1;
