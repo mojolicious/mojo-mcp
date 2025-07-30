@@ -19,6 +19,6 @@ jobs:
         run: |
           curl -L https://cpanmin.us | perl - --installdeps .
       - name: Run Tests
-        run: prove-l t
+        run: prove -l t
         env:
           TEST_STDIO: 1
