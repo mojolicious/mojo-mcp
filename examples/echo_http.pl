@@ -15,9 +15,9 @@
 #
 use Mojolicious::Lite -signatures;
 
-use Mojo::MCP::Server;
+use MCP::Server;
 
-my $server = Mojo::MCP::Server->new;
+my $server = MCP::Server->new;
 $server->tool(
   name         => 'echo',
   description  => 'Echo the input text',

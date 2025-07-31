@@ -10,9 +10,11 @@
 #   }
 # }
 #
-use Mojo::MCP::Server;
+use Mojo::Base -strict, -signatures;
 
-my $server = Mojo::MCP::Server->new;
+use MCP::Server;
+
+my $server = MCP::Server->new;
 $server->tool(
   name         => 'echo',
   description  => 'Echo the input text',

@@ -5,19 +5,19 @@ use Carp        qw(croak);
 use IPC::Run    qw(finish pump start timeout);
 use Time::HiRes qw(sleep);
 use Mojo::JSON  qw(decode_json encode_json);
+use MCP::Client;
+
+has client => sub { MCP::Client->new };
 
 sub notify ($self, $method, $params) {
-  my $notification = {jsonrpc => '2.0', method => $method, params => $params};
   $self->{timeout}->start(60);
-  $self->{stdin} .= encode_json($notification) . "\n";
+  $self->{stdin} .= encode_json($self->client->build_notification($method, $params)) . "\n";
   return 1;
 }
 
 sub request ($self, $method, $params) {
-  my $id      = $self->{id} = $self->{id} ? $self->{id} + 1 : 1;
-  my $request = {jsonrpc => '2.0', method => $method, params => $params, id => $id};
   $self->{timeout}->start(60);
-  $self->{stdin} .= encode_json($request) . "\n";
+  $self->{stdin} .= encode_json($self->client->build_request($method, $params)) . "\n";
 
   my $stdout = $self->{stdout};
   pump $self->{run} until $self->{stdout} =~ s/^(.*)\n//;

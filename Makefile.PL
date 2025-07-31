@@ -7,11 +7,11 @@ use utf8;
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-  NAME         => 'Mojo::MCP',
-  VERSION_FROM => 'lib/Mojo/MCP.pm',
-  ABSTRACT     => 'Mojolicious ♥ MCP',
+  NAME         => 'MCP',
+  VERSION_FROM => 'lib/MCP.pm',
+  ABSTRACT     => 'MCP Perl SDK',
   AUTHOR       => 'Sebastian Riedel <sri@cpan.org>',
-  LICENSE      => 'artistic_2',
+  LICENSE      => 'mit',
   META_MERGE   => {
     dynamic_config => 0,
     'meta-spec'    => {version   => 2},

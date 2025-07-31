@@ -1,14 +1,15 @@
-package Mojo::MCP::Server;
+package MCP::Server;
 use Mojo::Base -base, -signatures;
 
-use List::Util           qw(first);
-use Mojo::JSON           qw(false true);
-use Mojo::MCP::Constants qw(INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION);
-use Mojo::MCP::Server::Transport::HTTP;
-use Mojo::MCP::Server::Transport::Stdio;
-use Mojo::MCP::Tool;
+use List::Util     qw(first);
+use Mojo::JSON     qw(false true);
+use MCP::Constants qw(INVALID_PARAMS INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION);
+use MCP::Server::Transport::HTTP;
+use MCP::Server::Transport::Stdio;
+use MCP::Tool;
+use Scalar::Util qw(blessed);
 
-has name  => 'MojoServer';
+has name  => 'PerlServer';
 has tools => sub { [] };
 has 'transport';
 has version => '1.0.0';
@@ -24,13 +25,15 @@ sub handle ($self, $request) {
       my $result = $self->_handle_initialize($request->{params} // {});
       return _jsonrpc_response($result, $id);
     }
+    elsif ($method eq 'ping') {
+      return _jsonrpc_response({}, $id);
+    }
     elsif ($method eq 'tools/list') {
       my $result = $self->_handle_tools_list;
       return _jsonrpc_response($result, $id);
     }
     elsif ($method eq 'tools/call') {
-      my $result = $self->_handle_tools_call($request->{params} // {});
-      return _jsonrpc_response($result, $id);
+      return $self->_handle_tools_call($request->{params} // {}, $id);
     }
 
     # Method not found
@@ -42,17 +45,17 @@ sub handle ($self, $request) {
 }
 
 sub to_action ($self) {
-  $self->transport(my $http = Mojo::MCP::Server::Transport::HTTP->new(server => $self));
+  $self->transport(my $http = MCP::Server::Transport::HTTP->new(server => $self));
   return sub ($c) { $http->handle_request($c) };
 }
 
 sub to_stdio ($self) {
-  $self->transport(my $stdio = Mojo::MCP::Server::Transport::Stdio->new(server => $self));
+  $self->transport(my $stdio = MCP::Server::Transport::Stdio->new(server => $self));
   $self->transport->handle_requests;
 }
 
 sub tool ($self, %args) {
-  my $tool = Mojo::MCP::Tool->new(%args);
+  my $tool = MCP::Tool->new(%args);
   push @{$self->tools}, $tool;
   return $tool;
 }
@@ -60,17 +63,21 @@ sub tool ($self, %args) {
 sub _handle_initialize ($self, $params) {
   return {
     protocolVersion => PROTOCOL_VERSION,
-    capabilities    => {tools => {listChanged => true}},
+    capabilities    => {tools => {}},
     serverInfo      => {name  => $self->name, version => $self->version}
   };
 }
 
-sub _handle_tools_call ($self, $params) {
-  my $name   = $params->{name};
-  my $args   = $params->{arguments} // {};
-  my $tool   = first { $_->name eq $name } @{$self->tools};
+sub _handle_tools_call ($self, $params, $id) {
+  my $name = $params->{name}      // '';
+  my $args = $params->{arguments} // {};
+  return _jsonrpc_error(METHOD_NOT_FOUND, "Tool '$name' not found")
+    unless my $tool = first { $_->name eq $name } @{$self->tools};
+  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $tool->validate_input($args);
+
   my $result = $tool->call($args);
-  return {content => [{type => 'text', text => $result}], isError => false};
+  return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
+  return _jsonrpc_response($result, $id);
 }
 
 sub _handle_tools_list ($self) {
