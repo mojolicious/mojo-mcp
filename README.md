@@ -12,14 +12,40 @@ Please be aware that this module is still in development and will be changing ra
 specification is getting regular updates which we will implement. Breaking changes are very likely.
 
   * Tool calling
-  * Async tools
+  * Async tools with support for promises
   * Streamable HTTP and Stdio transports
-  * HTTP client
+  * HTTP client for testing
   * Can be embedded in Mojolicious web apps
+
+## Streamable HTTP Transport
+
+Use the `to_action` method to add an MCP endpoint to any Mojolicious application.
+
+```perl
+use Mojolicious::Lite -signatures;
+
+use MCP::Server;
+
+my $server = MCP::Server->new;
+$server->tool(
+  name         => 'echo',
+  description  => 'Echo the input text',
+  input_schema => {type => 'object', properties => {test => {type => 'string'}}, required => ['test']},
+  code         => sub ($tool, $args) {
+    return "Echo: $args->{test}";
+  }
+);
+
+any '/mcp' => $server->to_action;
+
+app->start;
+```
+
+Authentication can be added by the web application, just like for any other route.
 
 ## Stdio Transport
 
-Build local command line applications and use the stdio transport for testing.
+Build local command line applications and use the stdio transport for testing with the `to_stdio` method.
 
 ```perl
 use Mojo::Base -strict, -signatures;
