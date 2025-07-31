@@ -41,7 +41,7 @@ subtest 'List tools' => sub {
 };
 
 subtest 'Tool call' => sub {
-  my $res = $test->request('tools/call', {name => 'echo', arguments => {test => 'hello mojo'}});
+  my $res = $test->request('tools/call', {name => 'echo', arguments => {msg => 'hello mojo'}});
   is $res->{jsonrpc}, '2.0', 'JSON-RPC version';
   is $res->{id},      3,     'request id';
   is_deeply $res->{result}, {content => [{text => 'Echo: hello mojo', type => 'text'}], isError => false},
@@ -49,7 +49,7 @@ subtest 'Tool call' => sub {
 };
 
 subtest 'Tool call (async)' => sub {
-  my $res = $test->request('tools/call', {name => 'echo_async', arguments => {test => 'hello mojo'}});
+  my $res = $test->request('tools/call', {name => 'echo_async', arguments => {msg => 'hello mojo'}});
   is $res->{jsonrpc}, '2.0', 'JSON-RPC version';
   is $res->{id},      4,     'request id';
   is_deeply $res->{result}, {content => [{text => 'Echo (async): hello mojo', type => 'text'}], isError => false},
@@ -57,7 +57,7 @@ subtest 'Tool call (async)' => sub {
 };
 
 subtest 'Unicode' => sub {
-  my $res = $test->request('tools/call', {name => 'echo', arguments => {test => 'i ♥ mcp'}});
+  my $res = $test->request('tools/call', {name => 'echo', arguments => {msg => 'i ♥ mcp'}});
   is $res->{jsonrpc}, '2.0', 'JSON-RPC version';
   is $res->{id},      5,     'request id';
   is_deeply $res->{result}, {content => [{text => 'Echo: i ♥ mcp', type => 'text'}], isError => false},

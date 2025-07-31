@@ -38,21 +38,21 @@ subtest 'MCP endpoint' => sub {
     is $result->{tools}[0]{name},        'echo',                'tool name';
     is $result->{tools}[0]{description}, 'Echo the input text', 'tool description';
     is_deeply $result->{tools}[0]{inputSchema},
-      {type => 'object', properties => {test => {type => 'string'}}, required => ['test'],}, 'tool input schema';
+      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg'],}, 'tool input schema';
     is $result->{tools}[1]{name},        'echo_async',                         'tool name';
     is $result->{tools}[1]{description}, 'Echo the input text asynchronously', 'tool description';
     is_deeply $result->{tools}[1]{inputSchema},
-      {type => 'object', properties => {test => {type => 'string'}}, required => ['test'],}, 'tool input schema';
+      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg'],}, 'tool input schema';
     is $result->{tools}[2], undef, 'no more tools';
   };
 
   subtest 'Tool call' => sub {
-    my $result = $client->call_tool('echo', {test => 'hello mojo'});
+    my $result = $client->call_tool('echo', {msg => 'hello mojo'});
     is $result->{content}[0]{text}, 'Echo: hello mojo', 'tool call result';
   };
 
   subtest 'Tool call (async)' => sub {
-    my $result = $client->call_tool('echo_async', {test => 'hello mojo'});
+    my $result = $client->call_tool('echo_async', {msg => 'hello mojo'});
     is $result->{content}[0]{text}, 'Echo (async): hello mojo', 'tool call result';
   };
 

@@ -30,9 +30,9 @@ my $server = MCP::Server->new;
 $server->tool(
   name         => 'echo',
   description  => 'Echo the input text',
-  input_schema => {type => 'object', properties => {test => {type => 'string'}}, required => ['test']},
+  input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
   code         => sub ($tool, $args) {
-    return "Echo: $args->{test}";
+    return "Echo: $args->{msg}";
   }
 );
 
@@ -56,9 +56,9 @@ my $server = MCP::Server->new;
 $server->tool(
   name         => 'echo',
   description  => 'Echo the input text',
-  input_schema => {type => 'object', properties => {test => {type => 'string'}}, required => ['test']},
+  input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
   code         => sub ($tool, $args) {
-    return "Echo: $args->{test}";
+    return "Echo: $args->{msg}";
   }
 );
 
