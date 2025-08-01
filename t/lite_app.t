@@ -68,6 +68,11 @@ subtest 'MCP endpoint' => sub {
     is $result->{content}[0]{text}, 'Echo: i ♥ mcp', 'tool call result';
   };
 
+  subtest 'Tool call (Unicode and async)' => sub {
+    my $result = $client->call_tool('echo_async', {msg => 'i ♥ mcp'});
+    is $result->{content}[0]{text}, 'Echo (async): i ♥ mcp', 'tool call result';
+  };
+
   subtest 'Tool call (with HTTP header)' => sub {
     $client->ua->once(
       start => sub ($ua, $tx) {
