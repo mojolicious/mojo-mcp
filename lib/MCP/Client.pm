@@ -23,7 +23,7 @@ sub build_notification ($self, $method, $params = {}) {
   return {jsonrpc => '2.0', method => $method, params => $params};
 }
 
-sub call_tool ($self, $name, $args) {
+sub call_tool ($self, $name, $args = {}) {
   my $request = $self->build_request('tools/call', {name => $name, arguments => $args});
   return _result($self->send_request($request));
 }
@@ -103,7 +103,7 @@ MCP::Server::Transport::HTTP - HTTP transport for MCP servers
 
 =head1 DESCRIPTION
 
-L<MCP::Client> is a client for the Model Context Protocol (MCP) that communicates with MCP servers over HTTP.
+L<MCP::Client> is a client for MCP (Model Context Protocol) that communicates with MCP servers over HTTP.
 
 =head1 ATTRIBUTES
 
@@ -162,6 +162,7 @@ Builds a JSON-RPC notification with the given method name and parameters.
 
 =head2 call_tool
 
+  my $result = $client->call_tool('tool_name');
   my $result = $client->call_tool('tool_name', {arg1 => 'value1'});
 
 Calls a tool on the MCP server with the specified name and arguments, returning the result.

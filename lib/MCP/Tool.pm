@@ -7,7 +7,7 @@ use Scalar::Util qw(blessed);
 
 has code         => sub { die 'Tool code not implemented' };
 has description  => 'Generic MCP tool';
-has input_schema => sub { {} };
+has input_schema => sub { {type => 'object'} };
 has name         => 'tool';
 
 sub call ($self, $args, $context) {

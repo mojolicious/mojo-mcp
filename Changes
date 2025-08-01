@@ -1,5 +1,6 @@
 
-0.02  2025-08-02
+0.02  2025-08-01
+  - Fixed support for tool calls without arguments.
 
 0.01  2025-08-01
   - First release.

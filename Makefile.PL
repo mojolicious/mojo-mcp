@@ -9,7 +9,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
   NAME         => 'MCP',
   VERSION_FROM => 'lib/MCP.pm',
-  ABSTRACT     => 'MCP Perl SDK',
+  ABSTRACT     => 'Connect Perl with AI using MCP (Model Context Protocol)',
   AUTHOR       => 'Sebastian Riedel <sri@cpan.org>',
   LICENSE      => 'mit',
   META_MERGE   => {

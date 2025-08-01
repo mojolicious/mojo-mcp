@@ -110,7 +110,7 @@ MCP::Server - MCP server implementation
 
 =head1 DESCRIPTION
 
-L<MCP::Server> is a Model Context Protocol (MCP) server.
+L<MCP::Server> is an MCP (Model Context Protocol) server.
 
 =head1 ATTRIBUTES
 

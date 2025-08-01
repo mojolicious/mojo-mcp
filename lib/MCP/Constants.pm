@@ -17,7 +17,7 @@ our @EXPORT_OK = qw(INVALID_PARAMS INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR 
 
 =head1 NAME
 
-MCP::Constants - Constants for the Model Context Protocol (MCP)
+MCP::Constants - Constants for MCP (Model Context Protocol)
 
 =head1 SYNOPSIS
 
@@ -25,7 +25,7 @@ MCP::Constants - Constants for the Model Context Protocol (MCP)
 
 =head1 DESCRIPTION
 
-L<MCP::Constants> provides constants used in the Model Context Protocol (MCP).
+L<MCP::Constants> provides constants used in MCP (Model Context Protocol).
 
 =head1 CONSTANTS
 

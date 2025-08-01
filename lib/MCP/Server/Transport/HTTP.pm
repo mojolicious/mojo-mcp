@@ -67,7 +67,7 @@ MCP::Server::Transport::HTTP - HTTP transport for MCP servers
 
 =head1 DESCRIPTION
 
-L<MCP::Server::Transport::HTTP> is a transport for the Model Context Protocol (MCP) server that uses HTTP as the
+L<MCP::Server::Transport::HTTP> is a transport for MCP (Model Context Protocol) server that uses HTTP as the
 underlying transport mechanism.
 
 =head1 ATTRIBUTES

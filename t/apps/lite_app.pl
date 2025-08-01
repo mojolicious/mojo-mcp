@@ -33,6 +33,13 @@ $server->tool(
     return "Echo with header: $args->{msg} (Header: $header)";
   }
 );
+$server->tool(
+  name        => 'time',
+  description => 'Get the current time in epoch format',
+  code        => sub ($tool, $args) {
+    return time;
+  }
+);
 
 any '/mcp' => $server->to_action;
 

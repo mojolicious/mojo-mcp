@@ -38,16 +38,19 @@ subtest 'MCP endpoint' => sub {
     is $result->{tools}[0]{name},        'echo',                'tool name';
     is $result->{tools}[0]{description}, 'Echo the input text', 'tool description';
     is_deeply $result->{tools}[0]{inputSchema},
-      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg'],}, 'tool input schema';
+      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
     is $result->{tools}[1]{name},        'echo_async',                         'tool name';
     is $result->{tools}[1]{description}, 'Echo the input text asynchronously', 'tool description';
     is_deeply $result->{tools}[1]{inputSchema},
-      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg'],}, 'tool input schema';
+      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
     is $result->{tools}[2]{name},        'echo_header',                       'tool name';
     is $result->{tools}[2]{description}, 'Echo the input text with a header', 'tool description';
     is_deeply $result->{tools}[2]{inputSchema},
-      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg'],}, 'tool input schema';
-    is $result->{tools}[3], undef, 'no more tools';
+      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
+    is $result->{tools}[3]{name},        'time',                                 'tool name';
+    is $result->{tools}[3]{description}, 'Get the current time in epoch format', 'tool description';
+    is_deeply $result->{tools}[3]{inputSchema}, {type => 'object'}, 'tool input schema';
+    is $result->{tools}[4], undef, 'no more tools';
   };
 
   subtest 'Tool call' => sub {
@@ -68,6 +71,11 @@ subtest 'MCP endpoint' => sub {
     );
     my $result = $client->call_tool('echo_header', {msg => 'hello mojo'});
     is $result->{content}[0]{text}, 'Echo with header: hello mojo (Header: TestHeaderWorks)', 'tool call result';
+  };
+
+  subtest 'Tool call (no arguments)' => sub {
+    my $result = $client->call_tool('time');
+    like $result->{content}[0]{text}, qr/^\d+$/, 'tool call result';
   };
 
   subtest 'Unknown method' => sub {

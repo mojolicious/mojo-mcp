@@ -19,6 +19,31 @@ MCP - Model Context Protocol Perl SDK
 
   my $server = MCP::Server->new;
   $server->tool(
+    name         => 'time',
+    description  => 'Get the current local time',
+    code         => sub ($tool, $args) {
+      return localtime(time);
+    }
+  );
+
+  any '/mcp' => $server->to_action;
+
+  app->start;
+
+=head1 DESCRIPTION
+
+Connect Perl with AI using MCP (Model Context Protocol).
+
+=head3 Streamable HTTP Transport
+
+Use the C<to_action> method to add an MCP endpoint to any L<Mojolicious> application.
+
+  use Mojolicious::Lite -signatures;
+
+  use MCP::Server;
+
+  my $server = MCP::Server->new;
+  $server->tool(
     name         => 'echo',
     description  => 'Echo the input text',
     input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
@@ -31,9 +56,33 @@ MCP - Model Context Protocol Perl SDK
 
   app->start;
 
-=head1 DESCRIPTION
+Authentication can be added by the web application, just like for any other route.
 
-A Perl SDK for the Model Context Protocol (MCP).
+=head3 Stdio Transport
+
+Build local command line applications and use the stdio transport for testing with the C<to_stdio> method.
+
+  use Mojo::Base -strict, -signatures;
+
+  use MCP::Server;
+
+  my $server = MCP::Server->new;
+  $server->tool(
+    name         => 'echo',
+    description  => 'Echo the input text',
+    input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
+    code         => sub ($tool, $args) {
+      return "Echo: $args->{msg}";
+    }
+  );
+
+  $server->to_stdio;
+
+Just run the script and type requests on the command line.
+
+  $ perl examples/echo_stdio.pl
+  {"jsonrpc":"2.0","id":"1","method":"tools/list"}
+  {"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"echo","arguments":{"test":"hello perl"}}}
 
 =head1 SEE ALSO
 

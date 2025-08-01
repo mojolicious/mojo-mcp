@@ -20,7 +20,7 @@ MCP:Transport - Transport base class
 
 =head1 DESCRIPTION
 
-L<MCP::Server::Transport> is a base class for Model Context Protocol (MCP) transport implementations.
+L<MCP::Server::Transport> is a base class for MCP (Model Context Protocol) transport implementations.
 
 =head1 ATTRIBUTES
 

@@ -39,7 +39,7 @@ MCP::Server::Transport::Stdio - Stdio transport for MCP servers
 
 =head1 DESCRIPTION
 
-L<MCP::Server::Transport::Stdio> is a transport for the Model Context Protocol (MCP) server that reads requests from
+L<MCP::Server::Transport::Stdio> is a transport for MCP (Model Context Protocol) server that reads requests from
 standard input (STDIN) and writes responses to standard output (STDOUT). It is designed for command-line tools and
 debugging tasks.
 
