@@ -86,3 +86,112 @@ sub _result ($res) {
 }
 
 1;
+
+=encoding utf8
+
+=head1 NAME
+
+MCP::Server::Transport::HTTP - HTTP transport for MCP servers
+
+=head1 SYNOPSIS
+
+  use MCP::Client;
+
+  my $client = MCP::Client->new(url => 'http://localhost:3000/mcp');
+  $client->initialize_session;
+  my $tools = $client->list_tools;
+
+=head1 DESCRIPTION
+
+L<MCP::Client> is a client for the Model Context Protocol (MCP) that communicates with MCP servers over HTTP.
+
+=head1 ATTRIBUTES
+
+L<MCP::Client> inherits all attributes from L<Mojo::Base> and implements the following new ones.
+
+=head2 name
+
+  my $name = $client->name;
+  $client  = $client->name('PerlClient');
+
+The name of the client, defaults to C<PerlClient>.
+
+=head2 session_id
+
+  my $session_id = $client->session_id;
+  $client        = $client->session_id('12345');
+
+The session ID for the client, used to maintain state across requests.
+
+=head2 ua
+
+  my $ua  = $client->ua;
+  $client = $client->ua(Mojo::UserAgent->new);
+
+The user agent used for making HTTP requests, defaults to a new instance of L<Mojo::UserAgent>.
+
+=head2 url
+
+  my $url  = $client->url;
+  $client  = $client->url('http://localhost:3000/mcp');
+
+The URL of the MCP server, defaults to C<http://localhost:3000/mcp>.
+
+=head2 version
+
+  my $version = $client->version;
+  $client     = $client->version('1.0.0');
+
+The version of the client, defaults to C<1.0.0>.
+
+=head1 METHODS
+
+L<MCP::Client> inherits all methods from L<Mojo::Base> and implements the following new ones.
+
+=head2 build_request
+
+  my $request = $client->build_request('method_name', {param1 => 'value1'});
+
+Builds a JSON-RPC request with the given method name and parameters.
+
+=head2 build_notification
+
+  my $notification = $client->build_notification('method_name', {param1 => 'value1'});
+
+Builds a JSON-RPC notification with the given method name and parameters.
+
+=head2 call_tool
+
+  my $result = $client->call_tool('tool_name', {arg1 => 'value1'});
+
+Calls a tool on the MCP server with the specified name and arguments, returning the result.
+
+=head2 initialize_session
+
+  my $result = $client->initialize_session;
+
+Initializes a session with the MCP server, setting up the protocol version and client information.
+
+=head2 list_tools
+
+  my $tools = $client->list_tools;
+
+Lists all available tools on the MCP server.
+
+=head2 ping
+
+  my $result = $client->ping;
+
+Sends a ping request to the MCP server to check connectivity.
+
+=head2 send_request
+
+  my $response = $client->send_request($request);
+
+Sends a JSON-RPC request to the MCP server and returns the response.
+
+=head1 SEE ALSO
+
+L<MCP>, L<https://mojolicious.org>, L<https://modelcontextprotocol.io>.
+
+=cut

@@ -39,3 +39,88 @@ sub _type_check ($self, $result) {
 }
 
 1;
+
+=encoding utf8
+
+=head1 NAME
+
+MCP::Tool - Tool container
+
+=head1 SYNOPSIS
+
+  use MCP::Tool;
+
+  my $tool = MCP::Tool->new;
+
+=head1 DESCRIPTION
+
+L<MCP::Tool> is a container for tools to be called.
+
+=head1 ATTRIBUTES
+
+L<MCP::Tool> implements the following attributes.
+
+=head2 code
+
+  my $code = $tool->code;
+  $tool    = $tool->code(sub { ... });
+
+Tool code.
+
+=head2 description
+
+  my $description = $tool->description;
+  $tool           = $tool->description('A brief description of the tool');
+
+Description of the tool.
+
+=head2 input_schema
+
+  my $schema = $tool->input_schema;
+  $tool      = $tool->input_schema({type => 'object', properties => {foo => {type => 'string'}}});
+
+JSON schema for validating input arguments.
+
+=head2 name
+
+  my $name = $tool->name;
+  $tool    = $tool->name('my_tool');
+
+Name of the tool.
+
+=head1 METHODS
+
+L<MCP::Tool> inherits all methods from L<Mojo::Base> and implements the following new ones.
+
+=head2 call
+
+  my $result = $tool->call($args, $context);
+
+Calls the tool with the given arguments and context, returning a result. The result can be a promise or a direct value.
+
+=head2 context
+
+  my $context = $tool->context;
+
+Returns the context in which the tool is executed.
+
+  # Get controller for requests using the HTTP transport
+  my $c = $tool->context->{controller};
+
+=head2 text_result
+
+  my $result = $tool->text_result('Some text', $is_error);
+
+Returns a text result in the expected format, optionally marking it as an error.
+
+=head2 validate_input
+
+  my $bool = $tool->validate_input($args);
+
+Validates the input arguments against the tool's input schema. Returns true if validation failed.
+
+=head1 SEE ALSO
+
+L<MCP>, L<https://mojolicious.org>, L<https://modelcontextprotocol.io>.
+
+=cut

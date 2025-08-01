@@ -52,3 +52,41 @@ sub _handle_regular_request ($self, $c, $data, $session_id) {
 }
 
 1;
+
+=encoding utf8
+
+=head1 NAME
+
+MCP::Server::Transport::HTTP - HTTP transport for MCP servers
+
+=head1 SYNOPSIS
+
+  use MCP::Server::Transport::HTTP;
+
+  my $http = MCP::Server::Transport::HTTP->new;
+
+=head1 DESCRIPTION
+
+L<MCP::Server::Transport::HTTP> is a transport for the Model Context Protocol (MCP) server that uses HTTP as the
+underlying transport mechanism.
+
+=head1 ATTRIBUTES
+
+L<MCP::Server::Transport::HTTP> inherits all attributes from L<MCP::Server::Transport>.
+
+=head1 METHODS
+
+L<MCP::Server::Transport::HTTP> inherits all methods from L<MCP::Server::Transport> and implements the following new
+ones.
+
+=head2 handle_request
+
+  $http->handle_request(Mojolicious::Controller->new);
+
+Handles an incoming HTTP request.
+
+=head1 SEE ALSO
+
+L<MCP>, L<https://mojolicious.org>, L<https://modelcontextprotocol.io>.
+
+=cut
