@@ -84,6 +84,12 @@ Just run the script and type requests on the command line.
   {"jsonrpc":"2.0","id":"1","method":"tools/list"}
   {"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"echo","arguments":{"test":"hello perl"}}}
 
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2025, Sebastian Riedel.
+
+This program is free software, you can redistribute it and/or modify it under the terms of the MIT license.
+
 =head1 SEE ALSO
 
 L<Mojolicious>, L<https://mojolicious.org>, L<https://modelcontextprotocol.io>.
