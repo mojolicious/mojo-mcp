@@ -12,7 +12,7 @@ sub handle_requests ($self) {
   while (my $input = <>) {
     chomp $input;
     my $request = eval { decode_json($input) };
-    next unless my $response = $server->handle($request);
+    next unless my $response = $server->handle($request, {});
 
     if (blessed($response) && $response->isa('Mojo::Promise')) {
       $response->then(sub { _print_response($_[0]) })->wait;

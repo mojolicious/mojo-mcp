@@ -1,4 +1,4 @@
-use Mojo::Base -strict;
+use Mojo::Base -strict, -signatures;
 
 use Test::More;
 
@@ -43,7 +43,11 @@ subtest 'MCP endpoint' => sub {
     is $result->{tools}[1]{description}, 'Echo the input text asynchronously', 'tool description';
     is_deeply $result->{tools}[1]{inputSchema},
       {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg'],}, 'tool input schema';
-    is $result->{tools}[2], undef, 'no more tools';
+    is $result->{tools}[2]{name},        'echo_header',                       'tool name';
+    is $result->{tools}[2]{description}, 'Echo the input text with a header', 'tool description';
+    is_deeply $result->{tools}[2]{inputSchema},
+      {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg'],}, 'tool input schema';
+    is $result->{tools}[3], undef, 'no more tools';
   };
 
   subtest 'Tool call' => sub {
@@ -54,6 +58,16 @@ subtest 'MCP endpoint' => sub {
   subtest 'Tool call (async)' => sub {
     my $result = $client->call_tool('echo_async', {msg => 'hello mojo'});
     is $result->{content}[0]{text}, 'Echo (async): hello mojo', 'tool call result';
+  };
+
+  subtest 'Tool call (with HTTP header)' => sub {
+    $client->ua->once(
+      start => sub ($ua, $tx) {
+        $tx->req->headers->header('MCP-Custom-Header' => 'TestHeaderWorks');
+      }
+    );
+    my $result = $client->call_tool('echo_header', {msg => 'hello mojo'});
+    is $result->{content}[0]{text}, 'Echo with header: hello mojo (Header: TestHeaderWorks)', 'tool call result';
   };
 
   subtest 'Unknown method' => sub {

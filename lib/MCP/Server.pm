@@ -14,7 +14,7 @@ has tools => sub { [] };
 has 'transport';
 has version => '1.0.0';
 
-sub handle ($self, $request) {
+sub handle ($self, $request, $context) {
   return _jsonrpc_error(PARSE_ERROR, 'Invalid JSON-RPC request') unless ref $request eq 'HASH';
   return _jsonrpc_error(INVALID_REQUEST, 'Missing JSON-RPC method') unless my $method = $request->{method};
 
@@ -33,7 +33,7 @@ sub handle ($self, $request) {
       return _jsonrpc_response($result, $id);
     }
     elsif ($method eq 'tools/call') {
-      return $self->_handle_tools_call($request->{params} // {}, $id);
+      return $self->_handle_tools_call($request->{params} // {}, $id, $context);
     }
 
     # Method not found
@@ -68,14 +68,14 @@ sub _handle_initialize ($self, $params) {
   };
 }
 
-sub _handle_tools_call ($self, $params, $id) {
+sub _handle_tools_call ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
   return _jsonrpc_error(METHOD_NOT_FOUND, "Tool '$name' not found")
     unless my $tool = first { $_->name eq $name } @{$self->tools};
   return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $tool->validate_input($args);
 
-  my $result = $tool->call($args);
+  my $result = $tool->call($args, $context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
   return _jsonrpc_response($result, $id);
 }

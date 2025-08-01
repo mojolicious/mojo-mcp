@@ -23,6 +23,16 @@ $server->tool(
     return $promise;
   }
 );
+$server->tool(
+  name         => 'echo_header',
+  description  => 'Echo the input text with a header',
+  input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
+  code         => sub ($tool, $args) {
+    my $context = $tool->context;
+    my $header  = $context->{controller}->req->headers->header('Mcp-Custom-Header');
+    return "Echo with header: $args->{msg} (Header: $header)";
+  }
+);
 
 any '/mcp' => $server->to_action;
 

@@ -10,11 +10,14 @@ has description  => 'Generic MCP tool';
 has input_schema => sub { {} };
 has name         => 'tool';
 
-sub call ($self, $args) {
+sub call ($self, $args, $context) {
+  local $self->{context} = $context;
   my $result = $self->code->($self, $args);
   return $result->then(sub { $self->_type_check($_[0]) }) if blessed($result) && $result->isa('Mojo::Promise');
   return $self->_type_check($result);
 }
+
+sub context ($self) { $self->{context} || {} }
 
 sub text_result ($self, $text, $is_error = 0) {
   return {content => [{type => 'text', text => "$text"}], isError => $is_error ? true : false};

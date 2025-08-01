@@ -12,8 +12,8 @@ Please be aware that this module is still in development and will be changing ra
 specification is getting regular updates which we will implement. Breaking changes are very likely.
 
   * Tool calling
-  * Async tools with support for promises
   * Streamable HTTP and Stdio transports
+  * Scalable with pre-forking web server and async tools using promises
   * HTTP client for testing
   * Can be embedded in Mojolicious web apps
 

@@ -16,16 +16,16 @@ sub handle_request ($self, $c) {
 
 sub _extract_session_id ($self, $c) { return $c->req->headers->header('Mcp-Session-Id') }
 
-sub _handle ($self, $data) {
+sub _handle ($self, $data, $context) {
   warn "-- MCP Request\n@{[dumper($data)]}\n" if DEBUG;
-  my $result = $self->server->handle($data);
+  my $result = $self->server->handle($data, $context);
   warn "-- MCP Response\n@{[dumper($result)]}\n" if DEBUG && $result;
   return $result;
 }
 
 sub _handle_initialization ($self, $c, $data) {
   my $session_id = random_v4uuid;
-  my $result     = $self->_handle($data);
+  my $result     = $self->_handle($data, {});
   $c->res->headers->header('Mcp-Session-Id' => $session_id);
   $c->render(json => $result, status => 200);
 }
@@ -43,7 +43,8 @@ sub _handle_post ($self, $c) {
 sub _handle_regular_request ($self, $c, $data, $session_id) {
   return $c->render(json => {error => 'Missing session ID'}, status => 400) unless $session_id;
 
-  return $c->render(data => '', status => 202) unless defined(my $result = $self->_handle($data));
+  return $c->render(data => '', status => 202)
+    unless defined(my $result = $self->_handle($data, {session_id => $session_id, controller => $c}));
 
   return $result->then(sub { $c->render(json => $_[0], status => 200) })
     if blessed($result) && $result->isa('Mojo::Promise');
