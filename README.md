@@ -70,5 +70,5 @@ Just run the script and type requests on the command line.
 ```
 $ perl examples/echo_stdio.pl
 {"jsonrpc":"2.0","id":"1","method":"tools/list"}
-{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"echo","arguments":{"test":"hello perl"}}}
+{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"echo","arguments":{"msg":"hello perl"}}}
 ```
