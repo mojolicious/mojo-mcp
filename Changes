@@ -1,5 +1,6 @@
 
 0.03  2025-08-02
+  - Added image_result method to MCP::Tool.
   - Improved streaming HTTP transport to use SSE for async responses.
 
 0.02  2025-08-01

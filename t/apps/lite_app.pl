@@ -3,6 +3,7 @@ use Mojolicious::Lite -signatures;
 use MCP::Server;
 use Mojo::IOLoop;
 use Mojo::Promise;
+use Mojo::File qw(curfile);
 
 my $server = MCP::Server->new;
 $server->tool(
@@ -38,6 +39,15 @@ $server->tool(
   description => 'Get the current time in epoch format',
   code        => sub ($tool, $args) {
     return time;
+  }
+);
+$server->tool(
+  name         => 'generate_image',
+  description  => 'Generate a simple image from text',
+  input_schema => {type => 'object', properties => {text => {type => 'string'}}, required => ['text']},
+  code         => sub ($tool, $args) {
+    my $image = curfile->sibling('mojolicious.png')->slurp;
+    return $tool->image_result($image, {annotations => {audience => ['user']}});
   }
 );
 

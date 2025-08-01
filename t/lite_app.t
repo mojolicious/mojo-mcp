@@ -3,7 +3,8 @@ use Mojo::Base -strict, -signatures;
 use Test::More;
 
 use Test::Mojo;
-use Mojo::File qw(curfile);
+use Mojo::File       qw(curfile);
+use Mojo::ByteStream qw(b);
 use MCP::Client;
 use MCP::Constants qw(PROTOCOL_VERSION);
 
@@ -50,7 +51,11 @@ subtest 'MCP endpoint' => sub {
     is $result->{tools}[3]{name},        'time',                                 'tool name';
     is $result->{tools}[3]{description}, 'Get the current time in epoch format', 'tool description';
     is_deeply $result->{tools}[3]{inputSchema}, {type => 'object'}, 'tool input schema';
-    is $result->{tools}[4], undef, 'no more tools';
+    is $result->{tools}[4]{name},        'generate_image',                    'tool name';
+    is $result->{tools}[4]{description}, 'Generate a simple image from text', 'tool description';
+    is_deeply $result->{tools}[4]{inputSchema},
+      {type => 'object', properties => {text => {type => 'string'}}, required => ['text']}, 'tool input schema';
+    is $result->{tools}[5], undef, 'no more tools';
   };
 
   subtest 'Tool call' => sub {
@@ -86,6 +91,14 @@ subtest 'MCP endpoint' => sub {
   subtest 'Tool call (no arguments)' => sub {
     my $result = $client->call_tool('time');
     like $result->{content}[0]{text}, qr/^\d+$/, 'tool call result';
+  };
+
+  subtest 'Tool call (image)' => sub {
+    my $result = $client->call_tool('generate_image', {text => 'a cat?'});
+    is $result->{content}[0]{mimeType}, 'image/png', 'tool call image type';
+    is b($result->{content}[0]{data})->b64_decode->md5_sum, 'f55ea29e32455f6314ecc8b5c9f0590b',
+      'tool call image result';
+    is_deeply $result->{content}[0]{annotations}, {audience => ['user']}, 'tool call image annotations';
   };
 
   subtest 'Unknown method' => sub {

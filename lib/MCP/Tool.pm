@@ -3,6 +3,7 @@ use Mojo::Base -base, -signatures;
 
 use JSON::Validator;
 use Mojo::JSON   qw(false true);
+use Mojo::Util   qw(b64_encode);
 use Scalar::Util qw(blessed);
 
 has code         => sub { die 'Tool code not implemented' };
@@ -18,6 +19,18 @@ sub call ($self, $args, $context) {
 }
 
 sub context ($self) { $self->{context} || {} }
+
+sub image_result ($self, $image, $options = {}, $is_error = 0) {
+  return {
+    content => [{
+      type        => 'image',
+      data        => b64_encode($image, ''),
+      mimeType    => $options->{mime_type}   // 'image/png',
+      annotations => $options->{annotations} // {}
+    }],
+    isError => $is_error ? true : false
+  };
+}
 
 sub text_result ($self, $text, $is_error = 0) {
   return {content => [{type => 'text', text => "$text"}], isError => $is_error ? true : false};
@@ -106,6 +119,30 @@ Returns the context in which the tool is executed.
 
   # Get controller for requests using the HTTP transport
   my $c = $tool->context->{controller};
+
+=head2 image_result
+
+  my $result = $tool->image_result($bytes, $options, $is_error);
+
+Returns an image result in the expected format, optionally marking it as an error.
+
+hese options are currently available:
+
+=over 2
+
+=item annotations
+
+  annotations => {audience => ['user']}
+
+Annotations for the image.
+
+=item mime_type
+
+  mime_type => 'image/png'
+
+Specifies the MIME type of the image, defaults to 'image/png'.
+
+=back
 
 =head2 text_result
 
