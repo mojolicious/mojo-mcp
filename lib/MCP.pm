@@ -32,11 +32,14 @@ MCP - Model Context Protocol Perl SDK
 
 =head1 DESCRIPTION
 
-Connect Perl with AI using MCP (Model Context Protocol).
+Connect Perl with AI using the Model Context Protocol (MCP). Currently this module is focused on tool calling, but it
+will be extended to support other MCP features in the future. At its core, MCP is all about text processing, making it
+a great fit for Perl.
 
 =head3 Streamable HTTP Transport
 
-Use the C<to_action> method to add an MCP endpoint to any L<Mojolicious> application.
+Use the L<MCP::Server/"to_action"> method to add an MCP endpoint to any L<Mojolicious> application. The tool name and
+description are used for discovery, and the L<JSON schema|https://json-schema.org> is used to validate the input.
 
   use Mojolicious::Lite -signatures;
 
@@ -56,11 +59,13 @@ Use the C<to_action> method to add an MCP endpoint to any L<Mojolicious> applica
 
   app->start;
 
-Authentication can be added by the web application, just like for any other route.
+Authentication can be added by the web application, just like for any other route. To allow for MCP applications to
+scale with prefork web servers, server to client streaming is currentlly avoided when possible.
 
 =head3 Stdio Transport
 
-Build local command line applications and use the stdio transport for testing with the C<to_stdio> method.
+Build local command line applications and use the stdio transport for testing with the L<MCP::Server/"to_stdio">
+method.
 
   use Mojo::Base -strict, -signatures;
 
