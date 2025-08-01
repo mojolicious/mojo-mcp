@@ -3,7 +3,7 @@ use Mojo::Base -base, -signatures;
 
 use Carp           qw(croak);
 use MCP::Constants qw(PROTOCOL_VERSION);
-use Mojo::JSON     qw(decode_json);
+use Mojo::JSON     qw(from_json);
 use Mojo::UserAgent;
 use Scalar::Util qw(weaken);
 
@@ -56,7 +56,7 @@ sub send_request ($self, $request) {
   $tx->res->content->on(
     sse => sub {
       my ($content, $event) = @_;
-      return unless my $res = eval { decode_json($event) };
+      return unless $event->{text} && (my $res = eval { from_json($event->{text}) });
       return unless defined($res->{id}) && defined($id) && $res->{id} eq $id;
       $response = $res;
       $tx->res->error({message => 'Interrupted'});
