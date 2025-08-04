@@ -2,7 +2,7 @@ package MCP::Tool;
 use Mojo::Base -base, -signatures;
 
 use JSON::Validator;
-use Mojo::JSON   qw(false true);
+use Mojo::JSON   qw(false to_json true);
 use Mojo::Util   qw(b64_encode);
 use Scalar::Util qw(blessed);
 
@@ -10,6 +10,7 @@ has code         => sub { die 'Tool code not implemented' };
 has description  => 'Generic MCP tool';
 has input_schema => sub { {type => 'object'} };
 has name         => 'tool';
+has 'output_schema';
 
 sub call ($self, $args, $context) {
   local $self->{context} = $context;
@@ -30,6 +31,12 @@ sub image_result ($self, $image, $options = {}, $is_error = 0) {
     }],
     isError => $is_error ? true : false
   };
+}
+
+sub structured_result ($self, $data, $is_error = 0) {
+  my $result = $self->text_result(to_json($data), $is_error);
+  $result->{structuredContent} = $data;
+  return $result;
 }
 
 sub text_result ($self, $text, $is_error = 0) {
@@ -101,6 +108,13 @@ JSON schema for validating input arguments.
 
 Name of the tool.
 
+=head2 output_schema
+
+  my $schema = $tool->output_schema;
+  $tool      = $tool->output_schema({type => 'object', properties => {foo => {type => 'string'}}});
+
+JSON schema for validating output results.
+
 =head1 METHODS
 
 L<MCP::Tool> inherits all methods from L<Mojo::Base> and implements the following new ones.
@@ -143,6 +157,12 @@ Annotations for the image.
 Specifies the MIME type of the image, defaults to 'image/png'.
 
 =back
+
+=head2 structured_result
+
+  my $result = $tool->structured_result({foo => 'bar'}, $is_error);
+
+Returns a structured result in the format of L</"output_schema">, optionally marking it as an error.
 
 =head2 text_result
 

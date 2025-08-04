@@ -3,8 +3,9 @@ use Mojo::Base -strict, -signatures;
 use Test::More;
 
 use Test::Mojo;
-use Mojo::File       qw(curfile);
 use Mojo::ByteStream qw(b);
+use Mojo::File       qw(curfile);
+use Mojo::JSON       qw(from_json);
 use MCP::Client;
 use MCP::Constants qw(PROTOCOL_VERSION);
 
@@ -40,22 +41,45 @@ subtest 'MCP endpoint' => sub {
     is $result->{tools}[0]{description}, 'Echo the input text', 'tool description';
     is_deeply $result->{tools}[0]{inputSchema},
       {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
+    ok !exists($result->{tools}[0]{outputSchema}), 'no output schema';
     is $result->{tools}[1]{name},        'echo_async',                         'tool name';
     is $result->{tools}[1]{description}, 'Echo the input text asynchronously', 'tool description';
     is_deeply $result->{tools}[1]{inputSchema},
       {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
+    ok !exists($result->{tools}[1]{outputSchema}), 'no output schema';
     is $result->{tools}[2]{name},        'echo_header',                       'tool name';
     is $result->{tools}[2]{description}, 'Echo the input text with a header', 'tool description';
     is_deeply $result->{tools}[2]{inputSchema},
       {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
+    ok !exists($result->{tools}[2]{outputSchema}), 'no output schema';
     is $result->{tools}[3]{name},        'time',                                 'tool name';
     is $result->{tools}[3]{description}, 'Get the current time in epoch format', 'tool description';
     is_deeply $result->{tools}[3]{inputSchema}, {type => 'object'}, 'tool input schema';
+    ok !exists($result->{tools}[3]{outputSchema}), 'no output schema';
     is $result->{tools}[4]{name},        'generate_image',                    'tool name';
     is $result->{tools}[4]{description}, 'Generate a simple image from text', 'tool description';
     is_deeply $result->{tools}[4]{inputSchema},
       {type => 'object', properties => {text => {type => 'string'}}, required => ['text']}, 'tool input schema';
-    is $result->{tools}[5], undef, 'no more tools';
+    ok !exists($result->{tools}[4]{outputSchema}), 'no output schema';
+    is $result->{tools}[5]{name},        'current_weather',                         'tool name';
+    is $result->{tools}[5]{description}, 'Get current weather data for a location', 'tool description';
+    my $input_schema = {
+      type       => 'object',
+      properties => {location => {type => 'string', description => 'City name or zip code'}},
+      required   => ['location']
+    };
+    is_deeply $result->{tools}[5]{inputSchema}, $input_schema, 'tool input schema';
+    my $output_schema = {
+      type       => 'object',
+      properties => {
+        temperature => {type => 'number', description => 'Temperature in celsius'},
+        conditions  => {type => 'string', description => 'Weather conditions description'},
+        humidity    => {type => 'number', description => 'Humidity percentage'}
+      },
+      required => ['temperature', 'conditions', 'humidity']
+    };
+    is_deeply $result->{tools}[5]{outputSchema}, $output_schema, 'tool output schema';
+    is $result->{tools}[6], undef, 'no more tools';
   };
 
   subtest 'Tool call' => sub {
@@ -99,6 +123,22 @@ subtest 'MCP endpoint' => sub {
     is b($result->{content}[0]{data})->b64_decode->md5_sum, 'f55ea29e32455f6314ecc8b5c9f0590b',
       'tool call image result';
     is_deeply $result->{content}[0]{annotations}, {audience => ['user']}, 'tool call image annotations';
+  };
+
+  subtest 'Tool call (structured)' => sub {
+    my $result = $client->call_tool('current_weather', {location => 'Bremen'});
+    my $json   = from_json($result->{content}[0]{text});
+    is $json->{temperature}, 22,              'temperature';
+    is $json->{conditions},  'Partly cloudy', 'conditions';
+    is $json->{humidity},    65,              'humidity';
+    is_deeply $result->{structuredContent}, $json, 'structured content';
+
+    my $result2 = $client->call_tool('current_weather', {location => 'Whatever'});
+    my $json2   = from_json($result2->{content}[0]{text});
+    is $json2->{temperature}, 19,        'temperature';
+    is $json2->{conditions},  'Raining', 'conditions';
+    is $json2->{humidity},    80,        'humidity';
+    is_deeply $result2->{structuredContent}, $json2, 'structured content';
   };
 
   subtest 'Unknown method' => sub {

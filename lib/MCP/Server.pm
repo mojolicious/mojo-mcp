@@ -81,8 +81,13 @@ sub _handle_tools_call ($self, $params, $id, $context) {
 }
 
 sub _handle_tools_list ($self) {
-  my @tools
-    = map { {name => $_->name, description => $_->description, inputSchema => $_->input_schema} } @{$self->tools};
+  my @tools;
+  for my $tool (@{$self->tools}) {
+    my $info = {name => $tool->name, description => $tool->description, inputSchema => $tool->input_schema};
+    if (my $output_schema = $tool->output_schema) { $info->{outputSchema} = $output_schema }
+    push @tools, $info;
+  }
+
   return {tools => \@tools};
 }
 

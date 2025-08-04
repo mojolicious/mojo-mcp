@@ -50,6 +50,29 @@ $server->tool(
     return $tool->image_result($image, {annotations => {audience => ['user']}});
   }
 );
+$server->tool(
+  name         => 'current_weather',
+  description  => 'Get current weather data for a location',
+  input_schema => {
+    type       => 'object',
+    properties => {location => {type => 'string', description => 'City name or zip code'}},
+    required   => ['location']
+  },
+  output_schema => {
+    type       => 'object',
+    properties => {
+      temperature => {type => 'number', description => 'Temperature in celsius'},
+      conditions  => {type => 'string', description => 'Weather conditions description'},
+      humidity    => {type => 'number', description => 'Humidity percentage'}
+    },
+    required => ['temperature', 'conditions', 'humidity']
+  },
+  code => sub ($tool, $args) {
+    return $tool->structured_result({temperature => 22, conditions => 'Partly cloudy', humidity => 65})
+      if $args->{location} eq 'Bremen';
+    return $tool->structured_result({temperature => 19, conditions => 'Raining', humidity => 80});
+  }
+);
 
 any '/mcp' => $server->to_action;
 
