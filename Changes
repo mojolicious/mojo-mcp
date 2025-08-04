@@ -1,4 +1,6 @@
 
+0.05  2025-08-05
+
 0.04  2025-08-04
   - Added support for structured content.
   - Added output_schema attribute to MCP::Tool.
