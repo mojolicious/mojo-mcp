@@ -17,6 +17,14 @@ specification is getting regular updates which we will implement. Breaking chang
   * HTTP client for testing
   * Can be embedded in Mojolicious web apps
 
+## Installation
+
+  All you need is Perl 5.20 or newer. Just install from [CPAN](https://metacpan.org/pod/MCP).
+
+    $ cpanm -n MCP
+
+  We recommend the use of a [Perlbrew](http://perlbrew.pl) environment.
+
 ## Streamable HTTP Transport
 
 Use the `to_action` method to add an MCP endpoint to any Mojolicious application.
