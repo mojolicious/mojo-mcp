@@ -1,7 +1,7 @@
 package MCP;
 use Mojo::Base -base, -signatures;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 1;
 
