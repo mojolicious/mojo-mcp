@@ -28,6 +28,11 @@ sub call_tool ($self, $name, $args = {}) {
   return _result($self->send_request($request));
 }
 
+sub get_prompt ($self, $name, $args = {}) {
+  my $request = $self->build_request('prompts/get', {name => $name, arguments => $args});
+  return _result($self->send_request($request));
+}
+
 sub initialize_session ($self) {
   my $request = $self->build_request(
     initialize => {
@@ -41,8 +46,9 @@ sub initialize_session ($self) {
   return $result;
 }
 
-sub list_tools ($self) { _result($self->send_request($self->build_request('tools/list'))) }
-sub ping       ($self) { _result($self->send_request($self->build_request('ping'))) }
+sub list_prompts ($self) { _result($self->send_request($self->build_request('prompts/list'))) }
+sub list_tools   ($self) { _result($self->send_request($self->build_request('tools/list'))) }
+sub ping         ($self) { _result($self->send_request($self->build_request('ping'))) }
 
 sub send_request ($self, $request) {
   my $headers = {Accept => 'application/json, text/event-stream', 'Content-Type' => 'application/json'};
@@ -167,11 +173,24 @@ Builds a JSON-RPC notification with the given method name and parameters.
 
 Calls a tool on the MCP server with the specified name and arguments, returning the result.
 
+=head2 get_prompt
+
+  my $result = $client->get_prompt('prompt_name');
+  my $result = $client->get_prompt('prompt_name', {arg1 => 'value1'});
+
+Get a prompt from the MCP server with the specified name and arguments, returning the result.
+
 =head2 initialize_session
 
   my $result = $client->initialize_session;
 
 Initializes a session with the MCP server, setting up the protocol version and client information.
+
+=head2 list_prompts
+
+  my $prompts = $client->list_prompts;
+
+Lists all available prompts on the MCP server.
 
 =head2 list_tools
 

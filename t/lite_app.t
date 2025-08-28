@@ -26,8 +26,10 @@ subtest 'MCP endpoint' => sub {
     is $result->{protocolVersion},     PROTOCOL_VERSION, 'protocol version';
     is $result->{serverInfo}{name},    'PerlServer',     'server name';
     is $result->{serverInfo}{version}, '1.0.0',          'server version';
-    ok $result->{capabilities}, 'has capabilities';
-    ok $client->session_id,     'session id set';
+    ok $result->{capabilities},          'has capabilities';
+    ok $result->{capabilities}{prompts}, 'has prompts capability';
+    ok $result->{capabilities}{tools},   'has tools capability';
+    ok $client->session_id,              'session id set';
   };
 
   subtest 'Ping' => sub {
@@ -154,6 +156,63 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'Invalid tool arguments' => sub {
     eval { $client->call_tool('echo', {just => 'a test'}) };
+    like $@, qr/Error -32602: Invalid arguments/, 'right error';
+  };
+
+  subtest 'List prompts' => sub {
+    my $result = $client->list_prompts;
+    is $result->{prompts}[0]{name},        'time',                   'prompt name';
+    is $result->{prompts}[0]{description}, 'Tell the user the time', 'prompt description';
+    is_deeply $result->{prompts}[0]{arguments}, [], 'no prompt arguments';
+    is $result->{prompts}[1]{name},        'prompt_echo_async',                 'prompt name';
+    is $result->{prompts}[1]{description}, 'Make a prompt from the input text', 'prompt description';
+    is_deeply $result->{prompts}[1]{arguments}, [{name => 'msg', description => 'Message to echo', required => 1}],
+      'prompt arguments';
+    is $result->{prompts}[2]{name},        'prompt_echo_header',                              'prompt name';
+    is $result->{prompts}[2]{description}, 'Make a prompt from the input text with a header', 'prompt description';
+    is_deeply $result->{prompts}[2]{arguments}, [{name => 'msg', description => 'Message to echo', required => 1}],
+      'prompt arguments';
+    is $result->{prompts}[3], undef, 'no more prompts';
+  };
+
+  subtest 'Get prompt' => sub {
+    my $result = $client->get_prompt('time');
+    is $result->{messages}[0]{role},             'user',                           'prompt role';
+    is $result->{messages}[0]{content}[0]{text}, 'Tell the user the current time', 'prompt result';
+  };
+
+  subtest 'Get prompt (async)' => sub {
+    my $result = $client->get_prompt('prompt_echo_async', {msg => 'hello mojo'});
+    is $result->{messages}[0]{role},             'user',                              'prompt role';
+    is $result->{messages}[0]{content}[0]{text}, 'Tell the user (async): hello mojo', 'prompt result';
+  };
+
+  subtest 'Get prompt (Unicode)' => sub {
+    my $result = $client->get_prompt('prompt_echo_async', {msg => 'i ♥ mcp'});
+    is $result->{messages}[0]{role},             'user',                           'prompt role';
+    is $result->{messages}[0]{content}[0]{text}, 'Tell the user (async): i ♥ mcp', 'prompt result';
+  };
+
+  subtest 'Get prompt (with HTTP header)' => sub {
+    $client->ua->once(
+      start => sub ($ua, $tx) {
+        $tx->req->headers->header('MCP-Custom-Header' => 'TestHeaderWorks');
+      }
+    );
+    my $result = $client->get_prompt('prompt_echo_header', {msg => 'hello mojo'});
+    is $result->{description},       'Echoed message with header', 'prompt description';
+    is $result->{messages}[0]{role}, 'assistant',                  'prompt role';
+    is $result->{messages}[0]{content}[0]{text}, 'Prompt with header: hello mojo (Header: TestHeaderWorks)',
+      'prompt result';
+  };
+
+  subtest 'Invalid prompt name' => sub {
+    eval { $client->get_prompt('unknownPrompt', {}) };
+    like $@, qr/Error -32601: Prompt 'unknownPrompt' not found/, 'right error';
+  };
+
+  subtest 'Invalid prompt arguments' => sub {
+    eval { $client->get_prompt('prompt_echo_async', {just => 'a test'}) };
     like $@, qr/Error -32602: Invalid arguments/, 'right error';
   };
 };

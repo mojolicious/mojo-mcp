@@ -23,5 +23,12 @@ $server->tool(
     return "Echo: $args->{msg}";
   }
 );
+$server->prompt(
+  name        => 'echo',
+  description => 'A prompt to demonstrate the echo tool',
+  code        => sub ($prompt, $args) {
+    return 'Use the echo tool with the message "Hello, World!"';
+  }
+);
 
 $server->to_stdio;

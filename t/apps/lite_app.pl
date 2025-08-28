@@ -73,6 +73,34 @@ $server->tool(
     return $tool->structured_result({temperature => 19, conditions => 'Raining', humidity => 80});
   }
 );
+$server->prompt(
+  name        => 'time',
+  description => 'Tell the user the time',
+  code        => sub ($tool, $args) {
+    return 'Tell the user the current time';
+  }
+);
+$server->prompt(
+  name        => 'prompt_echo_async',
+  description => 'Make a prompt from the input text',
+  arguments   => [{name => 'msg', description => 'Message to echo', required => 1}],
+  code        => sub ($prompt, $args) {
+    my $promise = Mojo::Promise->new;
+    Mojo::IOLoop->timer(0.5 => sub { $promise->resolve("Tell the user (async): $args->{msg}") });
+    return $promise;
+  }
+);
+$server->prompt(
+  name        => 'prompt_echo_header',
+  description => 'Make a prompt from the input text with a header',
+  arguments   => [{name => 'msg', description => 'Message to echo', required => 1}],
+  code        => sub ($prompt, $args) {
+    my $context = $prompt->context;
+    my $header  = $context->{controller}->req->headers->header('Mcp-Custom-Header');
+    return $prompt->text_prompt("Prompt with header: $args->{msg} (Header: $header)",
+      'assistant', 'Echoed message with header');
+  }
+);
 
 any '/mcp' => $server->to_action;
 

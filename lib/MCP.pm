@@ -32,9 +32,9 @@ MCP - Model Context Protocol Perl SDK
 
 =head1 DESCRIPTION
 
-Connect Perl with AI using the Model Context Protocol (MCP). Currently this module is focused on tool calling, but it
-will be extended to support other MCP features in the future. At its core, MCP is all about text processing, making it
-a great fit for Perl.
+Connect Perl with AI using the Model Context Protocol (MCP). Currently this module is focused on tool calling and
+prompts, but it will be extended to support other MCP features in the future. At its core, MCP is all about text
+processing, making it a great fit for Perl.
 
 =head3 Streamable HTTP Transport
 
