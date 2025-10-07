@@ -2,9 +2,9 @@
 0.06  2025-08-29
 
 0.05  2025-08-28
-  - Added supprot for prompts.
+  - Added support for prompts.
   - Added MCP::Prompt class.
-  - Added get_prompt and list_pronmpts methods to MCP::Client.
+  - Added get_prompt and list_prompts methods to MCP::Client.
   - Added prompt method to MCP::Server.
 
 0.04  2025-08-04
