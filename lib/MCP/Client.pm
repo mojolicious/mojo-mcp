@@ -46,9 +46,15 @@ sub initialize_session ($self) {
   return $result;
 }
 
-sub list_prompts ($self) { _result($self->send_request($self->build_request('prompts/list'))) }
-sub list_tools   ($self) { _result($self->send_request($self->build_request('tools/list'))) }
-sub ping         ($self) { _result($self->send_request($self->build_request('ping'))) }
+sub list_prompts   ($self) { _result($self->send_request($self->build_request('prompts/list'))) }
+sub list_resources ($self) { _result($self->send_request($self->build_request('resources/list'))) }
+sub list_tools     ($self) { _result($self->send_request($self->build_request('tools/list'))) }
+sub ping           ($self) { _result($self->send_request($self->build_request('ping'))) }
+
+sub read_resource ($self, $uri) {
+  my $request = $self->build_request('resources/read', {uri => $uri});
+  return _result($self->send_request($request));
+}
 
 sub send_request ($self, $request) {
   my $headers = {Accept => 'application/json, text/event-stream', 'Content-Type' => 'application/json'};
@@ -192,6 +198,12 @@ Initializes a session with the MCP server, setting up the protocol version and c
 
 Lists all available prompts on the MCP server.
 
+=head2 list_resources
+
+  my $resources = $client->list_resources;
+
+Lists all available resources on the MCP server.
+
 =head2 list_tools
 
   my $tools = $client->list_tools;
@@ -203,6 +215,12 @@ Lists all available tools on the MCP server.
   my $result = $client->ping;
 
 Sends a ping request to the MCP server to check connectivity.
+
+=head2 read_resource
+
+  my $result = $client->read_resource('file:///path/to/resource.txt');
+
+Reads a resource from the MCP server with the specified URI, returning the result.
 
 =head2 send_request
 

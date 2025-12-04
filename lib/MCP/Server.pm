@@ -3,16 +3,18 @@ use Mojo::Base -base, -signatures;
 
 use List::Util     qw(first);
 use Mojo::JSON     qw(false true);
-use MCP::Constants qw(INVALID_PARAMS INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION);
+use MCP::Constants qw(INVALID_PARAMS INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION RESOURCE_NOT_FOUND);
 use MCP::Prompt;
+use MCP::Resource;
 use MCP::Server::Transport::HTTP;
 use MCP::Server::Transport::Stdio;
 use MCP::Tool;
 use Scalar::Util qw(blessed);
 
-has name    => 'PerlServer';
-has prompts => sub { [] };
-has tools   => sub { [] };
+has name      => 'PerlServer';
+has prompts   => sub { [] };
+has resources => sub { [] };
+has tools     => sub { [] };
 has 'transport';
 has version => '1.0.0';
 
@@ -27,6 +29,13 @@ sub handle ($self, $request, $context) {
       my $result = $self->_handle_initialize($request->{params} // {});
       return _jsonrpc_response($result, $id);
     }
+    elsif ($method eq 'tools/list') {
+      my $result = $self->_handle_tools_list;
+      return _jsonrpc_response($result, $id);
+    }
+    elsif ($method eq 'tools/call') {
+      return $self->_handle_tools_call($request->{params} // {}, $id, $context);
+    }
     elsif ($method eq 'ping') {
       return _jsonrpc_response({}, $id);
     }
@@ -37,12 +46,12 @@ sub handle ($self, $request, $context) {
     elsif ($method eq 'prompts/get') {
       return $self->_handle_prompts_get($request->{params} // {}, $id, $context);
     }
-    elsif ($method eq 'tools/list') {
-      my $result = $self->_handle_tools_list;
+    elsif ($method eq 'resources/list') {
+      my $result = $self->_handle_resources_list;
       return _jsonrpc_response($result, $id);
     }
-    elsif ($method eq 'tools/call') {
-      return $self->_handle_tools_call($request->{params} // {}, $id, $context);
+    elsif ($method eq 'resources/read') {
+      return $self->_handle_resources_read($request->{params} // {}, $id, $context);
     }
 
     # Method not found
@@ -57,6 +66,12 @@ sub prompt ($self, %args) {
   my $prompt = MCP::Prompt->new(%args);
   push @{$self->prompts}, $prompt;
   return $prompt;
+}
+
+sub resource ($self, %args) {
+  my $resource = MCP::Resource->new(%args);
+  push @{$self->resources}, $resource;
+  return $resource;
 }
 
 sub to_action ($self) {
@@ -78,7 +93,7 @@ sub tool ($self, %args) {
 sub _handle_initialize ($self, $params) {
   return {
     protocolVersion => PROTOCOL_VERSION,
-    capabilities    => {prompts => {},          tools   => {}},
+    capabilities    => {prompts => {}, resources => {}, tools => {}},
     serverInfo      => {name    => $self->name, version => $self->version}
   };
 }
@@ -101,6 +116,31 @@ sub _handle_prompts_get ($self, $params, $id, $context) {
   return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $prompt->validate_input($args);
 
   my $result = $prompt->call($args, $context);
+  return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
+  return _jsonrpc_response($result, $id);
+}
+
+sub _handle_resources_list ($self) {
+  my @resources;
+  for my $resource (@{$self->resources}) {
+    my $info = {
+      uri         => $resource->uri,
+      name        => $resource->name,
+      description => $resource->description,
+      mimeType    => $resource->mime_type
+    };
+    push @resources, $info;
+  }
+
+  return {resources => \@resources};
+}
+
+sub _handle_resources_read ($self, $params, $id, $context) {
+  my $uri = $params->{uri} // '';
+  return _jsonrpc_error(RESOURCE_NOT_FOUND, 'Resource not found')
+    unless my $resource = first { $_->uri eq $uri } @{$self->resources};
+
+  my $result = $resource->call($context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
   return _jsonrpc_response($result, $id);
 }
@@ -167,6 +207,16 @@ MCP::Server - MCP server implementation
     }
   );
 
+  $server->resource(
+    uri         => 'file:///example.txt',
+    name        => 'example',
+    description => 'A simple text resource',
+    mime_type   => 'text/plain',
+    code        => sub ($resource) {
+      return 'This is an example resource content.';
+    }
+  );
+
   $server->to_stdio;
 
 =head1 DESCRIPTION
@@ -183,6 +233,20 @@ L<MCP::Server> implements the following attributes.
   $server  = $server->name('MyServer');
 
 The name of the server, used for identification.
+
+=head2 prompts
+
+  my $prompts = $server->prompts;
+  $server    = $server->prompts([MCP::Prompt->new]);
+
+An array reference containing registered prompts.
+
+=head2 resources
+
+  my $resources = $server->resources;
+  $server      = $server->resources([MCP::Resource->new]);
+
+An array reference containing registered resources.
 
 =head2 tools
 
@@ -225,6 +289,18 @@ Handle a JSON-RPC request and return a response.
   );
 
 Register a new prompt with the server.
+
+=head2 resource
+
+  my $resource = $server->resource(
+    uri         => 'file://my_resource',
+    name        => 'sample_resource',
+    description => 'A sample resource',
+    mime_type   => 'text/plain',
+    code        => sub ($resource) { ... }
+  );
+
+Register a new resource with the server.
 
 =head2 to_action
 

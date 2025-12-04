@@ -12,6 +12,13 @@ has input_schema => sub { {type => 'object'} };
 has name         => 'tool';
 has 'output_schema';
 
+sub audio_result ($self, $audio, $options = {}, $is_error = 0) {
+  return {
+    content => [{type => 'audio', data => b64_encode($audio, ''), mimeType => $options->{mime_type} // 'audio/wav'}],
+    isError => $is_error ? true : false
+  };
+}
+
 sub call ($self, $args, $context) {
   local $self->{context} = $context;
   my $result = $self->code->($self, $args);
@@ -27,6 +34,20 @@ sub image_result ($self, $image, $options = {}, $is_error = 0) {
       type        => 'image',
       data        => b64_encode($image, ''),
       mimeType    => $options->{mime_type}   // 'image/png',
+      annotations => $options->{annotations} // {}
+    }],
+    isError => $is_error ? true : false
+  };
+}
+
+sub resource_link_result ($self, $uri, $options = {}, $is_error = 0) {
+  return {
+    content => [{
+      type        => 'resource_link',
+      uri         => $uri,
+      name        => $options->{name}        // '',
+      description => $options->{description} // '',
+      mimeType    => $options->{mime_type}   // 'text/plain',
       annotations => $options->{annotations} // {}
     }],
     isError => $is_error ? true : false
@@ -119,6 +140,24 @@ JSON schema for validating output results.
 
 L<MCP::Tool> inherits all methods from L<Mojo::Base> and implements the following new ones.
 
+=head2 audio_result
+
+  my $result = $tool->audio_result($bytes, $options, $is_error);
+
+Returns an audio result in the expected format, optionally marking it as an error.
+
+These options are currently available:
+
+=over 2
+
+=item mime_type
+
+  mime_type => 'audio/wav'
+
+Specifies the MIME type of the audio, defaults to C<audio/wav>.
+
+=back
+
 =head2 call
 
   my $result = $tool->call($args, $context);
@@ -140,7 +179,7 @@ Returns the context in which the tool is executed.
 
 Returns an image result in the expected format, optionally marking it as an error.
 
-hese options are currently available:
+These options are currently available:
 
 =over 2
 
@@ -154,7 +193,43 @@ Annotations for the image.
 
   mime_type => 'image/png'
 
-Specifies the MIME type of the image, defaults to 'image/png'.
+Specifies the MIME type of the image, defaults to C<image/png>.
+
+=back
+
+=head2 resource_link_result
+
+  my $result = $tool->resource_link_result($uri, $options, $is_error);
+
+Returns a resource link result in the expected format, optionally marking it as an error.
+
+These options are currently available:
+
+=over 2
+
+=item annotations
+
+  annotations => {audience => ['user']}
+
+Annotations for the resource link.
+
+=item description
+
+  description => 'A brief description of the resource'
+
+Description of the resource.
+
+=item mime_type
+
+  mime_type => 'text/x-perl'
+
+Specifies the MIME type of the resource, defaults to C<text/plain>.
+
+=item name
+
+  name => 'Resource Name'
+
+Name of the resource.
 
 =back
 

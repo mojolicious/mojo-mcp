@@ -51,6 +51,24 @@ $server->tool(
   }
 );
 $server->tool(
+  name         => 'generate_audio',
+  description  => 'Generate audio from text',
+  input_schema => {type => 'object', properties => {text => {type => 'string'}}, required => ['text']},
+  code         => sub ($tool, $args) {
+    my $audio = curfile->sibling('empty.wav')->slurp;
+    return $tool->audio_result($audio);
+  }
+);
+$server->tool(
+  name         => 'find_resource',
+  description  => 'Find a resource for the given text',
+  input_schema => {type => 'object', properties => {text => {type => 'string'}}, required => ['text']},
+  code         => sub ($tool, $args) {
+    my $uri = 'file:///path/to/resource.txt';
+    return $tool->resource_link_result($uri, {name => 'sample', description => 'An example resource'});
+  }
+);
+$server->tool(
   name         => 'current_weather',
   description  => 'Get current weather data for a location',
   input_schema => {
@@ -73,6 +91,7 @@ $server->tool(
     return $tool->structured_result({temperature => 19, conditions => 'Raining', humidity => 80});
   }
 );
+
 $server->prompt(
   name        => 'time',
   description => 'Tell the user the time',
@@ -99,6 +118,27 @@ $server->prompt(
     my $header  = $context->{controller}->req->headers->header('Mcp-Custom-Header');
     return $prompt->text_prompt("Prompt with header: $args->{msg} (Header: $header)",
       'assistant', 'Echoed message with header');
+  }
+);
+
+$server->resource(
+  name        => 'static_text',
+  description => 'A static text resource',
+  uri         => 'file:///path/to/static.txt',
+  mime_type   => 'text/plain',
+  code        => sub ($resource) {
+    return "This is a static text resource.";
+  }
+);
+$server->resource(
+  uri         => 'file:///path/to/async.txt',
+  name        => 'async_text',
+  description => 'An asynchronous text resource',
+  mime_type   => 'text/plain',
+  code        => sub ($resource) {
+    my $promise = Mojo::Promise->new;
+    Mojo::IOLoop->timer(0.5 => sub { $promise->resolve("This is an asynchronous text resource.") });
+    return $promise;
   }
 );
 

@@ -63,14 +63,24 @@ subtest 'MCP endpoint' => sub {
     is_deeply $result->{tools}[4]{inputSchema},
       {type => 'object', properties => {text => {type => 'string'}}, required => ['text']}, 'tool input schema';
     ok !exists($result->{tools}[4]{outputSchema}), 'no output schema';
-    is $result->{tools}[5]{name},        'current_weather',                         'tool name';
-    is $result->{tools}[5]{description}, 'Get current weather data for a location', 'tool description';
+    is $result->{tools}[5]{name},        'generate_audio',           'tool name';
+    is $result->{tools}[5]{description}, 'Generate audio from text', 'tool description';
+    is_deeply $result->{tools}[5]{inputSchema},
+      {type => 'object', properties => {text => {type => 'string'}}, required => ['text']}, 'tool input schema';
+    ok !exists($result->{tools}[5]{outputSchema}), 'no output schema';
+    is $result->{tools}[6]{name},        'find_resource',                      'tool name';
+    is $result->{tools}[6]{description}, 'Find a resource for the given text', 'tool description';
+    is_deeply $result->{tools}[6]{inputSchema},
+      {type => 'object', properties => {text => {type => 'string'}}, required => ['text']}, 'tool input schema';
+    ok !exists($result->{tools}[6]{outputSchema}), 'no output schema';
+    is $result->{tools}[7]{name},        'current_weather',                         'tool name';
+    is $result->{tools}[7]{description}, 'Get current weather data for a location', 'tool description';
     my $input_schema = {
       type       => 'object',
       properties => {location => {type => 'string', description => 'City name or zip code'}},
       required   => ['location']
     };
-    is_deeply $result->{tools}[5]{inputSchema}, $input_schema, 'tool input schema';
+    is_deeply $result->{tools}[7]{inputSchema}, $input_schema, 'tool input schema';
     my $output_schema = {
       type       => 'object',
       properties => {
@@ -80,8 +90,8 @@ subtest 'MCP endpoint' => sub {
       },
       required => ['temperature', 'conditions', 'humidity']
     };
-    is_deeply $result->{tools}[5]{outputSchema}, $output_schema, 'tool output schema';
-    is $result->{tools}[6], undef, 'no more tools';
+    is_deeply $result->{tools}[7]{outputSchema}, $output_schema, 'tool output schema';
+    is $result->{tools}[8], undef, 'no more tools';
   };
 
   subtest 'Tool call' => sub {
@@ -125,6 +135,21 @@ subtest 'MCP endpoint' => sub {
     is b($result->{content}[0]{data})->b64_decode->md5_sum, 'f55ea29e32455f6314ecc8b5c9f0590b',
       'tool call image result';
     is_deeply $result->{content}[0]{annotations}, {audience => ['user']}, 'tool call image annotations';
+  };
+
+  subtest 'Tool call (audio)' => sub {
+    my $result = $client->call_tool('generate_audio', {text => 'a cat?'});
+    is $result->{content}[0]{mimeType}, 'audio/wav', 'tool call audio type';
+    is b($result->{content}[0]{data})->b64_decode->md5_sum, 'e5de045688efc9777361ee3f7d47551d',
+      'tool call audio result';
+  };
+
+  subtest 'Tool call (resource link)' => sub {
+    my $result = $client->call_tool('find_resource', {text => 'a cat?'});
+    is $result->{content}[0]{uri},         'file:///path/to/resource.txt', 'tool call resource uri';
+    is $result->{content}[0]{name},        'sample',                       'tool call resource name';
+    is $result->{content}[0]{description}, 'An example resource',          'tool call resource description';
+    is $result->{content}[0]{mimeType},    'text/plain',                   'tool call resource mime type';
   };
 
   subtest 'Tool call (structured)' => sub {
@@ -214,6 +239,38 @@ subtest 'MCP endpoint' => sub {
   subtest 'Invalid prompt arguments' => sub {
     eval { $client->get_prompt('prompt_echo_async', {just => 'a test'}) };
     like $@, qr/Error -32602: Invalid arguments/, 'right error';
+  };
+
+  subtest 'List resources' => sub {
+    my $result = $client->list_resources;
+    is $result->{resources}[0]{name},        'static_text',                   'resource name';
+    is $result->{resources}[0]{description}, 'A static text resource',        'resource description';
+    is $result->{resources}[0]{uri},         'file:///path/to/static.txt',    'resource uri';
+    is $result->{resources}[0]{mimeType},    'text/plain',                    'resource mime type';
+    is $result->{resources}[1]{name},        'async_text',                    'resource name';
+    is $result->{resources}[1]{description}, 'An asynchronous text resource', 'resource description';
+    is $result->{resources}[1]{uri},         'file:///path/to/async.txt',     'resource uri';
+    is $result->{resources}[1]{mimeType},    'text/plain',                    'resource mime type';
+    is $result->{resources}[2],              undef,                           'no more resources';
+  };
+
+  subtest 'Read resource' => sub {
+    my $result = $client->read_resource('file:///path/to/static.txt');
+    is $result->{contents}[0]{uri},      'file:///path/to/static.txt',      'resource uri';
+    is $result->{contents}[0]{mimeType}, 'text/plain',                      'resource mime type';
+    is $result->{contents}[0]{text},     'This is a static text resource.', 'resource text';
+  };
+
+  subtest 'Read resource (async)' => sub {
+    my $result = $client->read_resource('file:///path/to/async.txt');
+    is $result->{contents}[0]{uri},      'file:///path/to/async.txt',              'resource uri';
+    is $result->{contents}[0]{mimeType}, 'text/plain',                             'resource mime type';
+    is $result->{contents}[0]{text},     'This is an asynchronous text resource.', 'resource text';
+  };
+
+  subtest 'Invalid resource uri' => sub {
+    eval { $client->read_resource('file://whatever') };
+    like $@, qr/Error -32002: Resource not found/, 'right error';
   };
 };
 
