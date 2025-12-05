@@ -131,6 +131,16 @@ $server->resource(
   }
 );
 $server->resource(
+  uri         => 'file:///path/to/image.png',
+  name        => 'static_image',
+  description => 'A static image resource',
+  mime_type   => 'image/png',
+  code        => sub ($resource) {
+    my $image = curfile->sibling('mojolicious.png')->slurp;
+    return $resource->binary_resource($image);
+  }
+);
+$server->resource(
   uri         => 'file:///path/to/async.txt',
   name        => 'async_text',
   description => 'An asynchronous text resource',

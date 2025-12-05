@@ -1,5 +1,5 @@
 package MCP::Server;
-use Mojo::Base -base, -signatures;
+use Mojo::Base 'Mojo::EventEmitter', -signatures;
 
 use List::Util     qw(first);
 use Mojo::JSON     qw(false true);
@@ -30,7 +30,7 @@ sub handle ($self, $request, $context) {
       return _jsonrpc_response($result, $id);
     }
     elsif ($method eq 'tools/list') {
-      my $result = $self->_handle_tools_list;
+      my $result = $self->_handle_tools_list($context);
       return _jsonrpc_response($result, $id);
     }
     elsif ($method eq 'tools/call') {
@@ -40,14 +40,14 @@ sub handle ($self, $request, $context) {
       return _jsonrpc_response({}, $id);
     }
     elsif ($method eq 'prompts/list') {
-      my $result = $self->_handle_prompts_list;
+      my $result = $self->_handle_prompts_list($context);
       return _jsonrpc_response($result, $id);
     }
     elsif ($method eq 'prompts/get') {
       return $self->_handle_prompts_get($request->{params} // {}, $id, $context);
     }
     elsif ($method eq 'resources/list') {
-      my $result = $self->_handle_resources_list;
+      my $result = $self->_handle_resources_list($context);
       return _jsonrpc_response($result, $id);
     }
     elsif ($method eq 'resources/read') {
@@ -98,9 +98,9 @@ sub _handle_initialize ($self, $params) {
   };
 }
 
-sub _handle_prompts_list ($self) {
+sub _handle_prompts_list ($self, $context) {
   my @prompts;
-  for my $prompt (@{$self->prompts}) {
+  for my $prompt (@{$self->_prompts($context)}) {
     my $info = {name => $prompt->name, description => $prompt->description, arguments => $prompt->arguments};
     push @prompts, $info;
   }
@@ -112,7 +112,7 @@ sub _handle_prompts_get ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
   return _jsonrpc_error(METHOD_NOT_FOUND, "Prompt '$name' not found")
-    unless my $prompt = first { $_->name eq $name } @{$self->prompts};
+    unless my $prompt = first { $_->name eq $name } @{$self->_prompts($context)};
   return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $prompt->validate_input($args);
 
   my $result = $prompt->call($args, $context);
@@ -120,9 +120,9 @@ sub _handle_prompts_get ($self, $params, $id, $context) {
   return _jsonrpc_response($result, $id);
 }
 
-sub _handle_resources_list ($self) {
+sub _handle_resources_list ($self, $context) {
   my @resources;
-  for my $resource (@{$self->resources}) {
+  for my $resource (@{$self->_resources($context)}) {
     my $info = {
       uri         => $resource->uri,
       name        => $resource->name,
@@ -138,7 +138,7 @@ sub _handle_resources_list ($self) {
 sub _handle_resources_read ($self, $params, $id, $context) {
   my $uri = $params->{uri} // '';
   return _jsonrpc_error(RESOURCE_NOT_FOUND, 'Resource not found')
-    unless my $resource = first { $_->uri eq $uri } @{$self->resources};
+    unless my $resource = first { $_->uri eq $uri } @{$self->_resources($context)};
 
   my $result = $resource->call($context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
@@ -149,7 +149,7 @@ sub _handle_tools_call ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
   return _jsonrpc_error(METHOD_NOT_FOUND, "Tool '$name' not found")
-    unless my $tool = first { $_->name eq $name } @{$self->tools};
+    unless my $tool = first { $_->name eq $name } @{$self->_tools($context)};
   return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $tool->validate_input($args);
 
   my $result = $tool->call($args, $context);
@@ -157,9 +157,9 @@ sub _handle_tools_call ($self, $params, $id, $context) {
   return _jsonrpc_response($result, $id);
 }
 
-sub _handle_tools_list ($self) {
+sub _handle_tools_list ($self, $context) {
   my @tools;
-  for my $tool (@{$self->tools}) {
+  for my $tool (@{$self->_tools($context)}) {
     my $info = {name => $tool->name, description => $tool->description, inputSchema => $tool->input_schema};
     if (my $output_schema = $tool->output_schema) { $info->{outputSchema} = $output_schema }
     push @tools, $info;
@@ -174,6 +174,24 @@ sub _jsonrpc_error ($code, $message, $id = undef) {
 
 sub _jsonrpc_response ($result, $id = undef) {
   return {jsonrpc => '2.0', id => $id, result => $result};
+}
+
+sub _prompts ($self, $context) {
+  my $prompts = [@{$self->prompts}];
+  $self->emit('prompts', $prompts, $context);
+  return $prompts;
+}
+
+sub _resources ($self, $context) {
+  my $resources = [@{$self->resources}];
+  $self->emit('resources', $resources, $context);
+  return $resources;
+}
+
+sub _tools ($self, $context) {
+  my $tools = [@{$self->tools}];
+  $self->emit('tools', $tools, $context);
+  return $tools;
 }
 
 1;
@@ -223,6 +241,28 @@ MCP::Server - MCP server implementation
 
 L<MCP::Server> is an MCP (Model Context Protocol) server.
 
+=head1 EVENTS
+
+L<MCP::Server> inherits all events from L<Mojo::EventEmitter> and emits the following new ones.
+
+=head2 prompts
+
+  $server->on(prompts => sub ($server, $prompts, $context) { ... });
+
+Emitted whenever the list of prompts is accessed.
+
+=head2 resources
+
+  $server->on(resources => sub ($server, $resources, $context) { ... });
+
+Emitted whenever the list of resources is accessed.
+
+=head2 tools
+
+  $server->on(tools => sub ($server, $tools, $context) { ... });
+
+Emitted whenever the list of tools is accessed.
+
 =head1 ATTRIBUTES
 
 L<MCP::Server> implements the following attributes.
@@ -271,7 +311,7 @@ The version of the server.
 
 =head1 METHODS
 
-L<MCP::Tool> inherits all methods from L<Mojo::Base> and implements the following new ones.
+L<MCP::Tool> inherits all methods from L<Mojo::EventEmitter> and implements the following new ones.
 
 =head2 handle
 

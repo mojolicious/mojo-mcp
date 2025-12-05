@@ -26,10 +26,11 @@ subtest 'MCP endpoint' => sub {
     is $result->{protocolVersion},     PROTOCOL_VERSION, 'protocol version';
     is $result->{serverInfo}{name},    'PerlServer',     'server name';
     is $result->{serverInfo}{version}, '1.0.0',          'server version';
-    ok $result->{capabilities},          'has capabilities';
-    ok $result->{capabilities}{prompts}, 'has prompts capability';
-    ok $result->{capabilities}{tools},   'has tools capability';
-    ok $client->session_id,              'session id set';
+    ok $result->{capabilities},            'has capabilities';
+    ok $result->{capabilities}{prompts},   'has prompts capability';
+    ok $result->{capabilities}{resources}, 'has resources capability';
+    ok $result->{capabilities}{tools},     'has tools capability';
+    ok $client->session_id,                'session id set';
   };
 
   subtest 'Ping' => sub {
@@ -247,18 +248,29 @@ subtest 'MCP endpoint' => sub {
     is $result->{resources}[0]{description}, 'A static text resource',        'resource description';
     is $result->{resources}[0]{uri},         'file:///path/to/static.txt',    'resource uri';
     is $result->{resources}[0]{mimeType},    'text/plain',                    'resource mime type';
-    is $result->{resources}[1]{name},        'async_text',                    'resource name';
-    is $result->{resources}[1]{description}, 'An asynchronous text resource', 'resource description';
-    is $result->{resources}[1]{uri},         'file:///path/to/async.txt',     'resource uri';
-    is $result->{resources}[1]{mimeType},    'text/plain',                    'resource mime type';
-    is $result->{resources}[2],              undef,                           'no more resources';
+    is $result->{resources}[1]{name},        'static_image',                  'resource name';
+    is $result->{resources}[1]{description}, 'A static image resource',       'resource description';
+    is $result->{resources}[1]{uri},         'file:///path/to/image.png',     'resource uri';
+    is $result->{resources}[1]{mimeType},    'image/png',                     'resource mime type';
+    is $result->{resources}[2]{name},        'async_text',                    'resource name';
+    is $result->{resources}[2]{description}, 'An asynchronous text resource', 'resource description';
+    is $result->{resources}[2]{uri},         'file:///path/to/async.txt',     'resource uri';
+    is $result->{resources}[2]{mimeType},    'text/plain',                    'resource mime type';
+    is $result->{resources}[3],              undef,                           'no more resources';
   };
 
-  subtest 'Read resource' => sub {
+  subtest 'Read resource (text)' => sub {
     my $result = $client->read_resource('file:///path/to/static.txt');
     is $result->{contents}[0]{uri},      'file:///path/to/static.txt',      'resource uri';
     is $result->{contents}[0]{mimeType}, 'text/plain',                      'resource mime type';
     is $result->{contents}[0]{text},     'This is a static text resource.', 'resource text';
+  };
+
+  subtest 'Read resource (image)' => sub {
+    my $result = $client->read_resource('file:///path/to/image.png');
+    is $result->{contents}[0]{uri},                          'file:///path/to/image.png',        'resource uri';
+    is $result->{contents}[0]{mimeType},                     'image/png',                        'resource mime type';
+    is b($result->{contents}[0]{blob})->b64_decode->md5_sum, 'f55ea29e32455f6314ecc8b5c9f0590b', 'resource image data';
   };
 
   subtest 'Read resource (async)' => sub {

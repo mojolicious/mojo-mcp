@@ -1,6 +1,7 @@
 package MCP::Resource;
 use Mojo::Base -base, -signatures;
 
+use Mojo::Util   qw(b64_encode);
 use Scalar::Util qw(blessed);
 
 has code        => sub { die 'Resource code not implemented' };
@@ -8,6 +9,11 @@ has description => 'Generic MCP resource';
 has mime_type   => 'text/plain';
 has name        => 'resource';
 has uri         => 'file://unknown';
+
+sub binary_resource ($self, $data) {
+  my $result = {contents => [{uri => $self->uri, mimeType => $self->mime_type, blob => b64_encode($data, '')}]};
+  return $result;
+}
 
 sub call ($self, $context) {
   local $self->{context} = $context;
@@ -88,6 +94,12 @@ URI of the resource.
 =head1 METHODS
 
 L<MCP::Resource> inherits all methods from L<Mojo::Base> and implements the following new ones.
+
+=head2 binary_resource
+
+  my $result = $resource->binary_resource($data);
+
+Returns a binary resource in the expected format.
 
 =head2 call
 
