@@ -4,12 +4,14 @@ use MCP::Server;
 use Mojo::IOLoop;
 use Mojo::Promise;
 use Mojo::File qw(curfile);
+use Mojo::JSON qw(true false);
 
 my $server = MCP::Server->new;
 $server->tool(
   name         => 'echo',
   description  => 'Echo the input text',
-  input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
+  input_schema => {type  => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
+  annotations  => {title => 'echo'},
   code         => sub ($tool, $args) {
     return "Echo: $args->{msg}";
   }
@@ -63,7 +65,14 @@ $server->tool(
   name         => 'find_resource',
   description  => 'Find a resource for the given text',
   input_schema => {type => 'object', properties => {text => {type => 'string'}}, required => ['text']},
-  code         => sub ($tool, $args) {
+  annotations  => {
+    title           => 'find_resource',
+    readOnlyHint    => true,
+    destructiveHint => false,
+    idempotentHint  => true,
+    openWorldHint   => false
+  },
+  code => sub ($tool, $args) {
     my $uri = 'file:///path/to/resource.txt';
     return $tool->resource_link_result($uri, {name => 'sample', description => 'An example resource'});
   }

@@ -6,6 +6,7 @@ use Mojo::JSON   qw(false to_json true);
 use Mojo::Util   qw(b64_encode);
 use Scalar::Util qw(blessed);
 
+has annotations  => sub { {} };
 has code         => sub { die 'Tool code not implemented' };
 has description  => 'Generic MCP tool';
 has input_schema => sub { {type => 'object'} };
@@ -100,6 +101,13 @@ L<MCP::Tool> is a container for tools to be called.
 =head1 ATTRIBUTES
 
 L<MCP::Tool> implements the following attributes.
+
+=head2 annotations
+
+  my $annotations = $tool->annotations;
+  $tool           = $tool->annotations({title => '...'});
+
+Optional annotations for the tool which provide additional metadata about the tool behavior.
 
 =head2 code
 

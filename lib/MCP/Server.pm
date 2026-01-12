@@ -162,6 +162,9 @@ sub _handle_tools_list ($self, $context) {
   for my $tool (@{$self->_tools($context)}) {
     my $info = {name => $tool->name, description => $tool->description, inputSchema => $tool->input_schema};
     if (my $output_schema = $tool->output_schema) { $info->{outputSchema} = $output_schema }
+
+    my $annotations = $tool->annotations;
+    $info->{annotations} = $annotations if keys %$annotations;
     push @tools, $info;
   }
 
