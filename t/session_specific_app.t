@@ -110,9 +110,9 @@ subtest 'MCP endpoint' => sub {
       is $result->{prompts}[2],       undef,          'no more prompts';
 
       my $user_prompt = $client->get_prompt('user_prompt');
-      is $user_prompt->{messages}[0]{content}[0]{text}, 'This is a user prompt', 'user prompt result';
+      is $user_prompt->{messages}[0]{content}{text}, 'This is a user prompt', 'user prompt result';
       my $admin_prompt = $client->get_prompt('admin_prompt');
-      is $admin_prompt->{messages}[0]{content}[0]{text}, 'This is an admin prompt', 'admin prompt result';
+      is $admin_prompt->{messages}[0]{content}{text}, 'This is an admin prompt', 'admin prompt result';
     };
 
     subtest 'Resources' => sub {
@@ -149,7 +149,7 @@ subtest 'MCP endpoint' => sub {
       is $result->{prompts}[1],       undef,         'no more prompts';
 
       my $user_prompt = $client->get_prompt('user_prompt');
-      is $user_prompt->{messages}[0]{content}[0]{text}, 'This is a user prompt', 'user prompt result';
+      is $user_prompt->{messages}[0]{content}{text}, 'This is a user prompt', 'user prompt result';
       eval { $client->get_prompt('admin_prompt') };
       like $@, qr/Error -32601: Prompt 'admin_prompt' not found/, 'right error';
     };

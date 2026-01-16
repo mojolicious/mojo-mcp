@@ -18,7 +18,7 @@ sub call ($self, $args, $context) {
 sub context ($self) { $self->{context} || {} }
 
 sub text_prompt ($self, $text, $role = 'user', $description = undef) {
-  my $result = {messages => [{role => $role, content => [{type => 'text', text => "$text"}]}]};
+  my $result = {messages => [{role => $role, content => {type => 'text', text => "$text"}}]};
   $result->{description} = $description if defined $description;
   return $result;
 }

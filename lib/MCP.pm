@@ -91,7 +91,7 @@ Just run the script and type requests on the command line.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2025, Sebastian Riedel.
+Copyright (C) 2025-2026, Sebastian Riedel.
 
 This program is free software, you can redistribute it and/or modify it under the terms of the MIT license.
 

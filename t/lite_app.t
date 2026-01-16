@@ -203,20 +203,20 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'Get prompt' => sub {
     my $result = $client->get_prompt('time');
-    is $result->{messages}[0]{role},             'user',                           'prompt role';
-    is $result->{messages}[0]{content}[0]{text}, 'Tell the user the current time', 'prompt result';
+    is $result->{messages}[0]{role},          'user',                           'prompt role';
+    is $result->{messages}[0]{content}{text}, 'Tell the user the current time', 'prompt result';
   };
 
   subtest 'Get prompt (async)' => sub {
     my $result = $client->get_prompt('prompt_echo_async', {msg => 'hello mojo'});
-    is $result->{messages}[0]{role},             'user',                              'prompt role';
-    is $result->{messages}[0]{content}[0]{text}, 'Tell the user (async): hello mojo', 'prompt result';
+    is $result->{messages}[0]{role},          'user',                              'prompt role';
+    is $result->{messages}[0]{content}{text}, 'Tell the user (async): hello mojo', 'prompt result';
   };
 
   subtest 'Get prompt (Unicode)' => sub {
     my $result = $client->get_prompt('prompt_echo_async', {msg => 'i ♥ mcp'});
-    is $result->{messages}[0]{role},             'user',                           'prompt role';
-    is $result->{messages}[0]{content}[0]{text}, 'Tell the user (async): i ♥ mcp', 'prompt result';
+    is $result->{messages}[0]{role},          'user',                           'prompt role';
+    is $result->{messages}[0]{content}{text}, 'Tell the user (async): i ♥ mcp', 'prompt result';
   };
 
   subtest 'Get prompt (with HTTP header)' => sub {
@@ -228,7 +228,7 @@ subtest 'MCP endpoint' => sub {
     my $result = $client->get_prompt('prompt_echo_header', {msg => 'hello mojo'});
     is $result->{description},       'Echoed message with header', 'prompt description';
     is $result->{messages}[0]{role}, 'assistant',                  'prompt role';
-    is $result->{messages}[0]{content}[0]{text}, 'Prompt with header: hello mojo (Header: TestHeaderWorks)',
+    is $result->{messages}[0]{content}{text}, 'Prompt with header: hello mojo (Header: TestHeaderWorks)',
       'prompt result';
   };
 
