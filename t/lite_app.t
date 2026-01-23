@@ -5,7 +5,7 @@ use Test::More;
 use Test::Mojo;
 use Mojo::ByteStream qw(b);
 use Mojo::File       qw(curfile);
-use Mojo::JSON       qw(from_json);
+use Mojo::JSON       qw(from_json true false);
 use MCP::Client;
 use MCP::Constants qw(PROTOCOL_VERSION);
 
@@ -45,13 +45,15 @@ subtest 'MCP endpoint' => sub {
     is_deeply $result->{tools}[0]{inputSchema},
       {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
     ok !exists($result->{tools}[0]{outputSchema}), 'no output schema';
+    is_deeply $result->{tools}[0]{annotations}, {title => 'echo'}, 'corrent number of annotations';
     is $result->{tools}[1]{name},        'echo_async',                         'tool name';
     is $result->{tools}[1]{description}, 'Echo the input text asynchronously', 'tool description';
     is_deeply $result->{tools}[1]{inputSchema},
       {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
     ok !exists($result->{tools}[1]{outputSchema}), 'no output schema';
-    is $result->{tools}[2]{name},        'echo_header',                       'tool name';
-    is $result->{tools}[2]{description}, 'Echo the input text with a header', 'tool description';
+    is keys %{$result->{tools}[1]{annotations}}, 0,             'empty annotations not serialized';
+    is $result->{tools}[2]{name},                'echo_header', 'tool name';
+    is $result->{tools}[2]{description},         'Echo the input text with a header', 'tool description';
     is_deeply $result->{tools}[2]{inputSchema},
       {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']}, 'tool input schema';
     ok !exists($result->{tools}[2]{outputSchema}), 'no output schema';
@@ -74,8 +76,11 @@ subtest 'MCP endpoint' => sub {
     is_deeply $result->{tools}[6]{inputSchema},
       {type => 'object', properties => {text => {type => 'string'}}, required => ['text']}, 'tool input schema';
     ok !exists($result->{tools}[6]{outputSchema}), 'no output schema';
-    is $result->{tools}[7]{name},        'current_weather',                         'tool name';
-    is $result->{tools}[7]{description}, 'Get current weather data for a location', 'tool description';
+    ok exists($result->{tools}[6]{annotations}),   'has annotations';
+    is keys %{$result->{tools}[6]{annotations}},       5,                 'all annotations are serialized';
+    is $result->{tools}[6]{annotations}{readOnlyHint}, true,              'annotation has correct value';
+    is $result->{tools}[7]{name},                      'current_weather', 'tool name';
+    is $result->{tools}[7]{description},               'Get current weather data for a location', 'tool description';
     my $input_schema = {
       type       => 'object',
       properties => {location => {type => 'string', description => 'City name or zip code'}},
@@ -92,7 +97,6 @@ subtest 'MCP endpoint' => sub {
       required => ['temperature', 'conditions', 'humidity']
     };
     is_deeply $result->{tools}[7]{outputSchema}, $output_schema, 'tool output schema';
-    is $result->{tools}[8], undef, 'no more tools';
   };
 
   subtest 'Tool call' => sub {
