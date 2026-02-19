@@ -8,9 +8,17 @@ use Scalar::Util qw(blessed);
 sub handle_requests ($self) {
   my $server = $self->server;
 
+  # Windows-compatible stdio setup
+  if ($^O eq 'MSWin32') {
+    binmode STDIN,  ':raw';
+    binmode STDOUT, ':raw';
+  }
   STDOUT->autoflush(1);
-  while (my $input = <>) {
-    chomp $input;
+
+  # Use sysread instead of <> for Windows pipe compatibility
+  # The diamond operator doesn't work reliably with Windows pipes
+  # when spawned by applications like Claude Desktop
+  while (defined(my $input = _read_line())) {
     my $request = eval { decode_json($input) };
     next unless my $response = $server->handle($request, {});
 
@@ -18,6 +26,19 @@ sub handle_requests ($self) {
       $response->then(sub { _print_response($_[0]) })->wait;
     }
     else { _print_response($response) }
+  }
+}
+
+sub _read_line () {
+  my $line = '';
+  while (1) {
+    my $bytes = sysread(STDIN, my $char, 1);
+    return undef if !defined $bytes || $bytes == 0;
+    if ($char eq "\n") {
+      $line =~ s/\r$//;  # Remove CR if present (Windows line endings)
+      return $line;
+    }
+    $line .= $char;
   }
 }
 
