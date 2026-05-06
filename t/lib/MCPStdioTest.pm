@@ -15,15 +15,21 @@ sub notify ($self, $method, $params) {
   return 1;
 }
 
+sub read_line ($self) {
+  $self->{timeout}->start(60);
+  pump $self->{run} until $self->{stdout} =~ s/^(.*)\n//;
+  return eval { decode_json($1) };
+}
+
 sub request ($self, $method, $params) {
+  $self->send_request($method, $params);
+  return $self->read_line;
+}
+
+sub send_request ($self, $method, $params) {
   $self->{timeout}->start(60);
   $self->{stdin} .= encode_json($self->client->build_request($method, $params)) . "\n";
-
-  my $stdout = $self->{stdout};
-  pump $self->{run} until $self->{stdout} =~ s/^(.*)\n//;
-  my $input = $1;
-  my $res   = eval { decode_json($input) };
-  return $res;
+  return 1;
 }
 
 sub run ($self, @command) {

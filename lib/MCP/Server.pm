@@ -74,8 +74,8 @@ sub resource ($self, %args) {
   return $resource;
 }
 
-sub to_action ($self) {
-  $self->transport(my $http = MCP::Server::Transport::HTTP->new(server => $self));
+sub to_action ($self, $options = {}) {
+  $self->transport(my $http = MCP::Server::Transport::HTTP->new(server => $self, %$options));
   return sub ($c) { $http->handle_request($c) };
 }
 
@@ -348,8 +348,11 @@ Register a new resource with the server.
 =head2 to_action
 
   my $action = $server->to_action;
+  my $action = $server->to_action({streaming => 1});
 
-Convert the server to a L<Mojolicious> action.
+Convert the server to a L<Mojolicious> action. Any options are passed through to the constructor of
+L<MCP::Server::Transport::HTTP>; in particular, C<< streaming => 1 >> opts in to the server-to-client SSE stream
+and explicit session termination.
 
 =head2 to_stdio
 

@@ -28,6 +28,18 @@ sub call_tool ($self, $name, $args = {}) {
   return _result($self->send_request($request));
 }
 
+sub delete_session ($self) {
+  return undef unless my $session_id = $self->session_id;
+  my $tx = $self->ua->build_tx(DELETE => $self->url => {'Mcp-Session-Id' => $session_id});
+  $tx = $self->ua->start($tx);
+  if (my $err = $tx->error) {
+    croak "$err->{code} response: $err->{message}" if $err->{code};
+    croak "Connection error: $err->{message}";
+  }
+  $self->session_id(undef);
+  return 1;
+}
+
 sub get_prompt ($self, $name, $args = {}) {
   my $request = $self->build_request('prompts/get', {name => $name, arguments => $args});
   return _result($self->send_request($request));
@@ -178,6 +190,14 @@ Builds a JSON-RPC notification with the given method name and parameters.
   my $result = $client->call_tool('tool_name', {arg1 => 'value1'});
 
 Calls a tool on the MCP server with the specified name and arguments, returning the result.
+
+=head2 delete_session
+
+  my $bool = $client->delete_session;
+
+Send a C<DELETE> request to terminate the current session on the MCP server, and clear the local
+L</"session_id">. Returns true on success, or C<undef> if no session is active. The server only honors this when it
+was configured with C<< streaming => 1 >>.
 
 =head2 get_prompt
 

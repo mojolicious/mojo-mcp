@@ -1,5 +1,13 @@
 
-0.09  2026-02-18
+0.10  2026-05-06
+  - Added opt-in server-to-client streaming and session termination to the HTTP transport. Not compatible with
+    pre-forking web servers.
+  - Added MCP::Primitive class.
+  - Added MCP::Server::Session class.
+  - Added heartbeat, session_timeout, sessions, and streaming attributes, and a notify method, to
+    MCP::Server::Transport::HTTP.
+  - Added notify method to MCP::Server::Transport::Stdio.
+  - Added delete_session method to MCP::Client.
 
 0.08  2026-02-17
   - Added support for tool annotations. (d3flex)

@@ -1,5 +1,5 @@
 package MCP::Prompt;
-use Mojo::Base -base, -signatures;
+use Mojo::Base 'MCP::Primitive', -signatures;
 
 use Scalar::Util qw(blessed);
 
@@ -14,8 +14,6 @@ sub call ($self, $args, $context) {
   return $result->then(sub { $self->_type_check($_[0]) }) if blessed($result) && $result->isa('Mojo::Promise');
   return $self->_type_check($result);
 }
-
-sub context ($self) { $self->{context} || {} }
 
 sub text_prompt ($self, $text, $role = 'user', $description = undef) {
   my $result = {messages => [{role => $role, content => {type => 'text', text => "$text"}}]};
@@ -88,7 +86,7 @@ Name of the Prompt.
 
 =head1 METHODS
 
-L<MCP::Prompt> inherits all methods from L<Mojo::Base> and implements the following new ones.
+L<MCP::Prompt> inherits all methods from L<MCP::Primitive> and implements the following new ones.
 
 =head2 call
 
@@ -96,15 +94,6 @@ L<MCP::Prompt> inherits all methods from L<Mojo::Base> and implements the follow
 
 Calls the prompt with the given arguments and context, returning a result. The result can be a promise or a direct
 value.
-
-=head2 context
-
-  my $context = $prompt->context;
-
-Returns the context in which the prompt is executed.
-
-  # Get controller for requests using the HTTP transport
-  my $c = $prompt->context->{controller};
 
 =head2 text_prompt
 

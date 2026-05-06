@@ -17,6 +17,7 @@ subtest 'Normal HTTP endpoint' => sub {
 
 subtest 'MCP endpoint' => sub {
   $t->get_ok('/mcp')->status_is(405)->content_like(qr/Method not allowed/);
+  $t->delete_ok('/mcp')->status_is(405)->content_like(qr/Method not allowed/);
 
   my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
 

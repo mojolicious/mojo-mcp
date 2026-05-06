@@ -12,13 +12,18 @@ sub handle_requests ($self) {
   while (my $input = <>) {
     chomp $input;
     my $request = eval { decode_json($input) };
-    next unless my $response = $server->handle($request, {});
+    next unless my $response = $server->handle($request, {transport => $self});
 
     if (blessed($response) && $response->isa('Mojo::Promise')) {
       $response->then(sub { _print_response($_[0]) })->wait;
     }
     else { _print_response($response) }
   }
+}
+
+sub notify ($self, $session_id, $method, $params = {}) {
+  _print_response({jsonrpc => '2.0', method => $method, params => $params});
+  return 1;
 }
 
 sub _print_response ($response) { print encode_json($response) . "\n" }
@@ -57,6 +62,13 @@ ones.
   $stdio->handle_requests;
 
 Reads requests from standard input and prints responses to standard output.
+
+=head2 notify
+
+  my $bool = $stdio->notify($session_id, $method);
+  my $bool = $stdio->notify($session_id, $method, {foo => 'bar'});
+
+Send a JSON-RPC notification to standard output. The C<$session_id> is ignored.
 
 =head1 SEE ALSO
 

@@ -64,6 +64,20 @@ subtest 'Unicode' => sub {
     'tool call result';
 };
 
+subtest 'Tool call (with notification)' => sub {
+  $test->send_request('tools/call', {name => 'echo_log', arguments => {msg => 'hi'}});
+  my $notif = $test->read_line;
+  is $notif->{jsonrpc},       '2.0',                   'JSON-RPC version';
+  is $notif->{id},            undef,                   'no request id';
+  is $notif->{method},        'notifications/message', 'notification method';
+  is $notif->{params}{level}, 'info',                  'notification level';
+  is $notif->{params}{data},  'hi',                    'notification payload';
+  my $res = $test->read_line;
+  is $res->{jsonrpc}, '2.0', 'JSON-RPC version';
+  is $res->{id},      6,     'request id';
+  is_deeply $res->{result}, {content => [{text => 'Echo: hi', type => 'text'}], isError => false}, 'tool call result';
+};
+
 ok $test->stop, 'process stopped';
 
 done_testing;

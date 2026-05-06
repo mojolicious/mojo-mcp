@@ -51,6 +51,33 @@ app->start;
 
 Authentication can be added by the web application, just like for any other route.
 
+## Server-to-Client Streaming
+
+The HTTP transport can optionally accept `GET` requests to open a long-lived SSE stream the server can push
+notifications to, and `DELETE` requests to terminate a session. This requires per-process state and is not
+compatible with pre-forking web servers, so it is opt-in.
+
+```perl
+use Mojolicious::Lite -signatures;
+
+use MCP::Server;
+
+my $server = MCP::Server->new;
+$server->tool(
+  name         => 'echo',
+  description  => 'Echo the input text',
+  input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
+  code         => sub ($tool, $args) {
+    $tool->notify('notifications/message', {level => 'info', data => "Echoing: $args->{msg}"});
+    return "Echo: $args->{msg}";
+  }
+);
+
+any '/mcp' => $server->to_action({streaming => 1});
+
+app->start;
+```
+
 ## Stdio Transport
 
 Build local command line applications and use the stdio transport for testing with the `to_stdio` method.

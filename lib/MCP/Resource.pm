@@ -1,5 +1,5 @@
 package MCP::Resource;
-use Mojo::Base -base, -signatures;
+use Mojo::Base 'MCP::Primitive', -signatures;
 
 use Mojo::Util   qw(b64_encode);
 use Scalar::Util qw(blessed);
@@ -21,8 +21,6 @@ sub call ($self, $context) {
   return $result->then(sub { $self->_type_check($_[0]) }) if blessed($result) && $result->isa('Mojo::Promise');
   return $self->_type_check($result);
 }
-
-sub context ($self) { $self->{context} || {} }
 
 sub text_resource ($self, $text) {
   my $result = {contents => [{uri => $self->uri, mimeType => $self->mime_type, text => $text}]};
@@ -93,7 +91,7 @@ URI of the resource.
 
 =head1 METHODS
 
-L<MCP::Resource> inherits all methods from L<Mojo::Base> and implements the following new ones.
+L<MCP::Resource> inherits all methods from L<MCP::Primitive> and implements the following new ones.
 
 =head2 binary_resource
 
@@ -106,15 +104,6 @@ Returns a binary resource in the expected format.
   my $result = $resource->call($context);
 
 Calls the resource with context, returning a result. The result can be a promise or a direct value.
-
-=head2 context
-
-  my $context = $resource->context;
-
-Returns the context in which the resouce is executed.
-
-  # Get controller for requests using the HTTP transport
-  my $c = $resource->context->{controller};
 
 =head2 text_resource
 

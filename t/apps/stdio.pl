@@ -23,5 +23,14 @@ $server->tool(
     return $promise;
   }
 );
+$server->tool(
+  name         => 'echo_log',
+  description  => 'Echo the input text and log a notification',
+  input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
+  code         => sub ($tool, $args) {
+    $tool->notify('notifications/message', {level => 'info', data => $args->{msg}});
+    return "Echo: $args->{msg}";
+  }
+);
 
 $server->to_stdio;

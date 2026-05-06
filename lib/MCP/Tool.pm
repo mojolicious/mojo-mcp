@@ -1,5 +1,5 @@
 package MCP::Tool;
-use Mojo::Base -base, -signatures;
+use Mojo::Base 'MCP::Primitive', -signatures;
 
 use JSON::Validator;
 use Mojo::JSON   qw(false to_json true);
@@ -26,8 +26,6 @@ sub call ($self, $args, $context) {
   return $result->then(sub { $self->_type_check($_[0]) }) if blessed($result) && $result->isa('Mojo::Promise');
   return $self->_type_check($result);
 }
-
-sub context ($self) { $self->{context} || {} }
 
 sub image_result ($self, $image, $options = {}, $is_error = 0) {
   return {
@@ -146,7 +144,7 @@ JSON schema for validating output results.
 
 =head1 METHODS
 
-L<MCP::Tool> inherits all methods from L<Mojo::Base> and implements the following new ones.
+L<MCP::Tool> inherits all methods from L<MCP::Primitive> and implements the following new ones.
 
 =head2 audio_result
 
@@ -171,15 +169,6 @@ Specifies the MIME type of the audio, defaults to C<audio/wav>.
   my $result = $tool->call($args, $context);
 
 Calls the tool with the given arguments and context, returning a result. The result can be a promise or a direct value.
-
-=head2 context
-
-  my $context = $tool->context;
-
-Returns the context in which the tool is executed.
-
-  # Get controller for requests using the HTTP transport
-  my $c = $tool->context->{controller};
 
 =head2 image_result
 
