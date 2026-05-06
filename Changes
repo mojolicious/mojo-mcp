@@ -1,4 +1,6 @@
 
+0.11  2026-05-07
+
 0.10  2026-05-06
   - Added opt-in server-to-client streaming and session termination to the HTTP transport. Not compatible with
     pre-forking web servers.
