@@ -26,7 +26,7 @@ sub handle ($self, $request, $context) {
   if (defined(my $id = $request->{id})) {
 
     my $token = ($request->{params} // {})->{_meta}{progressToken};
-    $context = {%$context, progress_token => $token} if defined $token;
+    $context->progress_token($token) if defined $token;
 
     if ($method eq 'initialize') {
       my $result = $self->_handle_initialize($request->{params} // {});

@@ -2,6 +2,7 @@ package MCP::Server::Transport::HTTP;
 use Mojo::Base 'MCP::Server::Transport', -signatures;
 
 use Crypt::Misc qw(random_v4uuid);
+use MCP::Server::Context;
 use MCP::Server::Session;
 use Mojo::IOLoop;
 use Mojo::JSON   qw(to_json true);
@@ -92,7 +93,7 @@ sub _handle_get ($self, $c) {
 
 sub _handle_initialization ($self, $c, $data) {
   my $session_id = random_v4uuid;
-  my $result     = $self->_handle($data, {});
+  my $result     = $self->_handle($data, MCP::Server::Context->new);
   if ($self->streaming) {
     $self->sessions->{$session_id} = MCP::Server::Session->new(id => $session_id);
     $self->_start_sweep;
@@ -120,9 +121,8 @@ sub _handle_regular_request ($self, $c, $data, $session_id) {
   }
 
   $c->res->headers->header('Mcp-Session-Id' => $session_id);
-  return $c->render(data => '', status => 202)
-    unless
-    defined(my $result = $self->_handle($data, {transport => $self, session_id => $session_id, controller => $c}));
+  my $context = MCP::Server::Context->new(transport => $self, session_id => $session_id, controller => $c);
+  return $c->render(data => '', status => 202) unless defined(my $result = $self->_handle($data, $context));
 
   # Sync
   return $c->render(json => $result, status => 200) if !blessed($result) || !$result->isa('Mojo::Promise');

@@ -28,7 +28,7 @@ $server->tool(
   description  => 'Echo the input text and log a notification',
   input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
   code         => sub ($tool, $args) {
-    $tool->notify('notifications/message', {level => 'info', data => $args->{msg}});
+    $tool->context->notify('notifications/message', {level => 'info', data => $args->{msg}});
     return "Echo: $args->{msg}";
   }
 );
@@ -45,7 +45,7 @@ $server->tool(
   description  => 'Echo the input text and report progress',
   input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
   code         => sub ($tool, $args) {
-    $tool->notify_progress(0.5, 1, 'half');
+    $tool->context->notify_progress(0.5, 1, 'half');
     return "Echo: $args->{msg}";
   }
 );

@@ -70,7 +70,7 @@ $server->tool(
   description  => 'Echo the input text',
   input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
   code         => sub ($tool, $args) {
-    $tool->notify('notifications/message', {level => 'info', data => "Echoing: $args->{msg}"});
+    $tool->context->notify('notifications/message', {level => 'info', data => "Echoing: $args->{msg}"});
     return "Echo: $args->{msg}";
   }
 );
