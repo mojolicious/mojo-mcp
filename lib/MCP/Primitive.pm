@@ -9,6 +9,14 @@ sub notify ($self, $method, $params = {}) {
   return $transport->notify($context->{session_id}, $method, $params);
 }
 
+sub notify_progress ($self, $progress, $total = undef, $message = undef) {
+  return undef unless defined(my $token = $self->context->{progress_token});
+  my $params = {progressToken => $token, progress => $progress};
+  $params->{total}   = $total   if defined $total;
+  $params->{message} = $message if defined $message;
+  return $self->notify('notifications/progress', $params);
+}
+
 1;
 
 =encoding utf8
@@ -49,6 +57,15 @@ Returns the context in which the primitive is executed.
 
 Send a JSON-RPC notification to the client associated with the current request context. Returns true on success, or
 C<undef> if no notification could be delivered.
+
+=head2 notify_progress
+
+  my $bool = $primitive->notify_progress($progress);
+  my $bool = $primitive->notify_progress($progress, $total);
+  my $bool = $primitive->notify_progress($progress, $total, $message);
+
+Send a C<notifications/progress> JSON-RPC notification for the progress token associated with the current request.
+Returns true on success, or C<undef> if no progress token was provided by the client.
 
 =head1 SEE ALSO
 

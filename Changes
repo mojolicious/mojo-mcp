@@ -3,6 +3,8 @@
   - Added opt-in server-to-client streaming and session termination to the HTTP transport. Not compatible with
     pre-forking web servers.
   - Added support for list_changed notifications.
+  - Added support for progress notifications.
+  - Added notify_progress method to MCP::Primitive.
   - Added MCP::Primitive class.
   - Added MCP::Server::Session class.
   - Added heartbeat, session_timeout, sessions, and streaming attributes, and a notify method, to

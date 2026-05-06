@@ -40,5 +40,14 @@ $server->tool(
     return 'reloaded';
   }
 );
+$server->tool(
+  name         => 'echo_progress',
+  description  => 'Echo the input text and report progress',
+  input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
+  code         => sub ($tool, $args) {
+    $tool->notify_progress(0.5, 1, 'half');
+    return "Echo: $args->{msg}";
+  }
+);
 
 $server->to_stdio;

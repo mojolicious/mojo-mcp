@@ -26,6 +26,13 @@ $server->tool(
     return $sent ? 'sent' : 'no stream';
   }
 );
+$server->tool(
+  name => 'progress',
+  code => sub ($tool, $args) {
+    my $sent = $tool->notify_progress(1, 2, 'halfway');
+    return $sent ? 'sent' : 'no token';
+  }
+);
 
 any '/mcp' => $server->to_action({streaming => 1, heartbeat => 0, session_timeout => 0.5});
 
@@ -130,6 +137,49 @@ subtest 'Notify (no stream)' => sub {
   $client->initialize_session;
   my $result = $client->call_tool('notify_status');
   is $result->{content}[0]{text}, 'no stream', 'notify returns false without an open stream';
+  $client->delete_session;
+};
+
+subtest 'Progress notifications' => sub {
+  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
+  $client->initialize_session;
+
+  my $got_notification = Mojo::Promise->new;
+  my $msg;
+  my $url = $t->ua->server->url->path('/mcp');
+  my $tx  = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $client->session_id});
+  $tx->res->content->on(
+    sse => sub ($content, $event = undef) {
+      return if $msg;
+      return unless $event && $event->{text} && (my $parsed = eval { from_json($event->{text}) });
+      $msg = $parsed;
+      $got_notification->resolve;
+    }
+  );
+  $t->ua->start_p($tx)->catch(sub { });
+  Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
+
+  my $request
+    = $client->build_request('tools/call', {name => 'progress', arguments => {}, _meta => {progressToken => 'tok-1'}});
+  my $response = $client->send_request($request);
+  is $response->{result}{content}[0]{text}, 'sent', 'tool call result';
+
+  $got_notification->timeout(5)->wait;
+  is $msg->{jsonrpc},               '2.0',                    'JSON-RPC version';
+  is $msg->{method},                'notifications/progress', 'notification method';
+  is $msg->{params}{progressToken}, 'tok-1',                  'progress token echoed';
+  is $msg->{params}{progress},      1,                        'progress value';
+  is $msg->{params}{total},         2,                        'total value';
+  is $msg->{params}{message},       'halfway',                'progress message';
+
+  $client->delete_session;
+};
+
+subtest 'Progress (no token)' => sub {
+  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
+  $client->initialize_session;
+  my $result = $client->call_tool('progress');
+  is $result->{content}[0]{text}, 'no token', 'notify_progress returns false without a token';
   $client->delete_session;
 };
 

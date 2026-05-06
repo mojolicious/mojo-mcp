@@ -93,6 +93,23 @@ subtest 'Tool call (with broadcast)' => sub {
   is_deeply $res->{result}, {content => [{text => 'reloaded', type => 'text'}], isError => false}, 'tool call result';
 };
 
+subtest 'Tool call (with progress)' => sub {
+  $test->send_request('tools/call',
+    {name => 'echo_progress', arguments => {msg => 'hi'}, _meta => {progressToken => 'p1'}});
+  my $notif = $test->read_line;
+  is $notif->{jsonrpc},               '2.0',                    'JSON-RPC version';
+  is $notif->{id},                    undef,                    'no request id';
+  is $notif->{method},                'notifications/progress', 'notification method';
+  is $notif->{params}{progressToken}, 'p1',                     'progress token echoed';
+  is $notif->{params}{progress},      0.5,                      'progress value';
+  is $notif->{params}{total},         1,                        'total value';
+  is $notif->{params}{message},       'half',                   'progress message';
+  my $res = $test->read_line;
+  is $res->{jsonrpc}, '2.0', 'JSON-RPC version';
+  is $res->{id},      8,     'request id';
+  is_deeply $res->{result}, {content => [{text => 'Echo: hi', type => 'text'}], isError => false}, 'tool call result';
+};
+
 ok $test->stop, 'process stopped';
 
 done_testing;
