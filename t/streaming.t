@@ -5,7 +5,7 @@ use Test::More;
 use Mojolicious::Lite;
 use Test::Mojo;
 use Mojo::IOLoop;
-use Mojo::JSON qw(from_json);
+use Mojo::JSON qw(from_json true);
 use Mojo::Promise;
 use MCP::Client;
 use MCP::Server;
@@ -43,6 +43,40 @@ subtest 'Unknown session' => sub {
   my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
   eval { $client->session_id('nope'); $client->ping };
   like $@, qr/404 response/, 'POST with unknown session is rejected';
+};
+
+subtest 'List changed' => sub {
+  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
+  my $caps   = $client->initialize_session->{capabilities};
+  is $caps->{tools}{listChanged},     true, 'tools listChanged advertised';
+  is $caps->{prompts}{listChanged},   true, 'prompts listChanged advertised';
+  is $caps->{resources}{listChanged}, true, 'resources listChanged advertised';
+
+  my $got_notification = Mojo::Promise->new;
+  my $msg;
+  my $url = $t->ua->server->url->path('/mcp');
+  my $tx  = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $client->session_id});
+  $tx->res->content->on(
+    sse => sub ($content, $event = undef) {
+      return if $msg;
+      return unless $event && $event->{text} && (my $parsed = eval { from_json($event->{text}) });
+      $msg = $parsed;
+      $got_notification->resolve;
+    }
+  );
+  $t->ua->start_p($tx)->catch(sub { });
+  Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
+
+  ok $server->notify_list_changed('tools'), 'broadcast attempted';
+  $got_notification->timeout(5)->wait;
+  is $msg->{jsonrpc}, '2.0',                              'JSON-RPC version';
+  is $msg->{method},  'notifications/tools/list_changed', 'notification method';
+
+  $client->delete_session;
+};
+
+subtest 'List changed (no streams)' => sub {
+  ok $server->notify_list_changed('prompts'), 'broadcast attempted';
 };
 
 subtest 'Bidirectional flow' => sub {

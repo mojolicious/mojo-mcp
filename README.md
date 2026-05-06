@@ -13,6 +13,7 @@ specification is getting regular updates which we will implement. Breaking chang
 
   * Tool calling, prompts and resources
   * Streamable HTTP and Stdio transports
+  * Notifications for list changes (tools, prompts, resources)
   * Scalable with pre-forking web server and async tools using promises
   * HTTP client for testing
   * Can be embedded in Mojolicious web apps

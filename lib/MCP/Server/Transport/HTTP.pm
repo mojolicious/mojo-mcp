@@ -15,6 +15,8 @@ has session_timeout => 3600;
 has sessions        => sub { {} };
 has streaming       => 0;
 
+sub notifications ($self) { $self->streaming ? 1 : 0 }
+
 sub handle_request ($self, $c) {
   my $method = $c->req->method;
   return $self->_handle_post($c)   if $method eq 'POST';
@@ -27,6 +29,16 @@ sub notify ($self, $session_id, $method, $params = {}) {
   return undef unless my $session = $self->sessions->{$session_id};
   return undef unless my $stream  = $session->stream;
   $stream->write_sse({text => to_json({jsonrpc => '2.0', method => $method, params => $params})});
+  return 1;
+}
+
+sub notify_all ($self, $method, $params = {}) {
+  return undef unless $self->streaming;
+  my $payload = {text => to_json({jsonrpc => '2.0', method => $method, params => $params})};
+  for my $session (values %{$self->sessions}) {
+    next unless my $stream = $session->stream;
+    $stream->write_sse($payload);
+  }
   return 1;
 }
 
@@ -214,6 +226,12 @@ ones.
 
 Handles an incoming HTTP request.
 
+=head2 notifications
+
+  my $bool = $http->notifications;
+
+True when L</"streaming"> is enabled, false otherwise.
+
 =head2 notify
 
   my $bool = $http->notify($session_id, $method);
@@ -221,6 +239,14 @@ Handles an incoming HTTP request.
 
 Send a JSON-RPC notification to the open SSE stream of a session. Returns true on success, or C<undef> if the
 session does not exist or has no open stream. Only available when L</"streaming"> is enabled.
+
+=head2 notify_all
+
+  my $bool = $http->notify_all($method);
+  my $bool = $http->notify_all($method, {foo => 'bar'});
+
+Send a JSON-RPC notification to the open SSE stream of every active session. Returns true on success, or C<undef>
+when L</"streaming"> is disabled.
 
 =head1 SEE ALSO
 

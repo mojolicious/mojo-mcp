@@ -8,11 +8,18 @@ use Mojo::File       qw(curfile);
 use Mojo::JSON       qw(from_json true false);
 use MCP::Client;
 use MCP::Constants qw(PROTOCOL_VERSION);
+use MCP::Server;
 
 my $t = Test::Mojo->new(curfile->sibling('apps', 'lite_app.pl'));
 
 subtest 'Normal HTTP endpoint' => sub {
   $t->get_ok('/')->status_is(200)->content_like(qr/Hello MCP!/);
+};
+
+subtest 'List changed without streaming' => sub {
+  my $server = MCP::Server->new;
+  $server->to_action;
+  is $server->notify_list_changed('tools'), undef, 'no broadcast without streaming';
 };
 
 subtest 'MCP endpoint' => sub {
@@ -27,11 +34,14 @@ subtest 'MCP endpoint' => sub {
     is $result->{protocolVersion},     PROTOCOL_VERSION, 'protocol version';
     is $result->{serverInfo}{name},    'PerlServer',     'server name';
     is $result->{serverInfo}{version}, '1.0.0',          'server version';
-    ok $result->{capabilities},            'has capabilities';
-    ok $result->{capabilities}{prompts},   'has prompts capability';
-    ok $result->{capabilities}{resources}, 'has resources capability';
-    ok $result->{capabilities}{tools},     'has tools capability';
-    ok $client->session_id,                'session id set';
+    ok $result->{capabilities},                                 'has capabilities';
+    ok $result->{capabilities}{prompts},                        'has prompts capability';
+    ok $result->{capabilities}{resources},                      'has resources capability';
+    ok $result->{capabilities}{tools},                          'has tools capability';
+    ok !exists $result->{capabilities}{tools}{listChanged},     'no listChanged for tools';
+    ok !exists $result->{capabilities}{prompts}{listChanged},   'no listChanged for prompts';
+    ok !exists $result->{capabilities}{resources}{listChanged}, 'no listChanged for resources';
+    ok $client->session_id,                                     'session id set';
   };
 
   subtest 'Ping' => sub {

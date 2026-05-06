@@ -3,6 +3,8 @@ use Mojo::Base -base, -signatures;
 
 has 'server';
 
+sub notifications ($self) {1}
+
 1;
 
 =encoding utf8
@@ -32,6 +34,16 @@ L<MCP::Server::Transport> implements the following attributes.
   $transport = $transport->server(MCP::Server->new);
 
 The server instance that this transport is associated with.
+
+=head1 METHODS
+
+L<MCP::Server::Transport> implements the following methods.
+
+=head2 notifications
+
+  my $bool = $transport->notifications;
+
+True when the transport can push server-to-client notifications outside an in-flight response.
 
 =head1 SEE ALSO
 

@@ -26,6 +26,8 @@ sub notify ($self, $session_id, $method, $params = {}) {
   return 1;
 }
 
+sub notify_all ($self, $method, $params = {}) { $self->notify(undef, $method, $params) }
+
 sub _print_response ($response) { print encode_json($response) . "\n" }
 
 1;
@@ -69,6 +71,13 @@ Reads requests from standard input and prints responses to standard output.
   my $bool = $stdio->notify($session_id, $method, {foo => 'bar'});
 
 Send a JSON-RPC notification to standard output. The C<$session_id> is ignored.
+
+=head2 notify_all
+
+  my $bool = $stdio->notify_all($method);
+  my $bool = $stdio->notify_all($method, {foo => 'bar'});
+
+Send a JSON-RPC notification to standard output.
 
 =head1 SEE ALSO
 

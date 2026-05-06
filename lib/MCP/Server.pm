@@ -62,6 +62,11 @@ sub handle ($self, $request, $context) {
   return undef;
 }
 
+sub notify_list_changed ($self, $kind) {
+  return undef unless my $transport = $self->transport;
+  return $transport->notify_all("notifications/$kind/list_changed");
+}
+
 sub prompt ($self, %args) {
   my $prompt = MCP::Prompt->new(%args);
   push @{$self->prompts}, $prompt;
@@ -91,9 +96,11 @@ sub tool ($self, %args) {
 }
 
 sub _handle_initialize ($self, $params) {
+  my $transport = $self->transport;
+  my $caps      = $transport && $transport->notifications ? {listChanged => true} : {};
   return {
     protocolVersion => PROTOCOL_VERSION,
-    capabilities    => {prompts => {}, resources => {}, tools => {}},
+    capabilities    => {prompts => $caps, resources => $caps, tools => $caps},
     serverInfo      => {name    => $self->name, version => $self->version}
   };
 }
@@ -321,6 +328,13 @@ L<MCP::Tool> inherits all methods from L<Mojo::EventEmitter> and implements the 
   my $response = $server->handle($request, $context);
 
 Handle a JSON-RPC request and return a response.
+
+=head2 notify_list_changed
+
+  my $bool = $server->notify_list_changed('tools');
+
+Broadcast a C<notifications/$kind/list_changed> JSON-RPC notification to all connected clients. Returns true on
+success, or C<undef> if no notification could be delivered.
 
 =head2 prompt
 

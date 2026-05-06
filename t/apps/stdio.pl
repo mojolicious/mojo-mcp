@@ -32,5 +32,13 @@ $server->tool(
     return "Echo: $args->{msg}";
   }
 );
+$server->tool(
+  name        => 'reload',
+  description => 'Broadcast a tools list_changed notification',
+  code        => sub ($tool, $args) {
+    $server->notify_list_changed('tools');
+    return 'reloaded';
+  }
+);
 
 $server->to_stdio;
