@@ -15,6 +15,7 @@ jobs:
         uses: shogo82148/actions-setup-perl@v1
         with:
           distribution: strawberry
+          perl-version: '5.40'
       - name: perl -V
         run: perl -V
       - name: Install dependencies
