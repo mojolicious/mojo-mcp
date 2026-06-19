@@ -26,6 +26,15 @@ sub handle_requests ($self) {
   }
 }
 
+sub notify ($self, $session_id, $method, $params = {}) {
+  _print_response({jsonrpc => '2.0', method => $method, params => $params});
+  return 1;
+}
+
+sub notify_all ($self, $method, $params = {}) { $self->notify(undef, $method, $params) }
+
+sub _print_response ($response) { print encode_json($response) . "\n" }
+
 sub _read_line ($buffer) {
   while (index($$buffer, "\n") < 0) {
     last unless sysread STDIN, my $chunk, 131072;
@@ -38,15 +47,6 @@ sub _read_line ($buffer) {
   $line =~ s/\r?\n?$//;
   return $line;
 }
-
-sub notify ($self, $session_id, $method, $params = {}) {
-  _print_response({jsonrpc => '2.0', method => $method, params => $params});
-  return 1;
-}
-
-sub notify_all ($self, $method, $params = {}) { $self->notify(undef, $method, $params) }
-
-sub _print_response ($response) { print encode_json($response) . "\n" }
 
 1;
 
