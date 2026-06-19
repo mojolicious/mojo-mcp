@@ -59,8 +59,9 @@ description are used for discovery, and the L<JSON schema|https://json-schema.or
 
   app->start;
 
-Authentication can be added by the web application, just like for any other route. To allow for MCP applications to
-scale with prefork web servers, server to client streaming is currentlly avoided when possible.
+Authentication can be added by the web application, just like for any other route. OAuth scopes can be enforced per
+tool, prompt and resource. To allow for MCP applications to scale with prefork web servers, server to client
+streaming is currentlly avoided when possible.
 
 =head3 Stdio Transport
 
