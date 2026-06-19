@@ -1,7 +1,7 @@
 package MCP::Tool;
 use Mojo::Base 'MCP::Primitive', -signatures;
 
-use JSON::Validator;
+use JSON::Schema::Tiny;
 use Mojo::JSON   qw(false to_json true);
 use Mojo::Util   qw(b64_encode);
 use Scalar::Util qw(blessed);
@@ -65,12 +65,10 @@ sub text_result ($self, $text, $is_error = 0) {
 
 sub validate_input ($self, $args) {
   unless ($self->{validator}) {
-    my $validator = $self->{validator} = JSON::Validator->new;
-    $validator->schema($self->input_schema);
+    $self->{validator} = JSON::Schema::Tiny->new(boolean_result => 1, specification_version => 'draft7');
   }
 
-  my @errors = $self->{validator}->validate($args);
-  return @errors ? 1 : 0;
+  return $self->{validator}->evaluate($args, $self->input_schema) ? 0 : 1;
 }
 
 sub _type_check ($self, $result) {

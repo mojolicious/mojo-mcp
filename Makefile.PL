@@ -29,6 +29,7 @@ WriteMakefile(
       x_IRC => {url => 'irc://irc.libera.chat/#mojo', web => 'https://web.libera.chat/#mojo'}
     },
   },
-  PREREQ_PM => {'CryptX' => '0.087', 'IPC::Run' => '20231003.0', 'JSON::Validator' => '5.15', Mojolicious => '9.41'},
-  test      => {TESTS    => 't/*.t t/*/*.t'}
+  PREREQ_PM =>
+    {'CryptX' => '0.087', 'IPC::Run' => '20231003.0', 'JSON::Schema::Tiny' => '0.031', Mojolicious => '9.41'},
+  test => {TESTS => 't/*.t t/*/*.t'}
 );

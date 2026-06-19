@@ -19,7 +19,6 @@ jobs:
         run: perl -V
       - name: Install dependencies
         run: |
-          cpanm -n JSON::Validator@5.15
           cpanm -n --installdeps .
       - name: Run tests
         run: prove -l t
