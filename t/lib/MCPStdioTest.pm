@@ -32,6 +32,12 @@ sub send_request ($self, $method, $params) {
   return 1;
 }
 
+sub send_request_crlf ($self, $method, $params) {
+  $self->{timeout}->start(60);
+  $self->{stdin} .= encode_json($self->client->build_request($method, $params)) . "\r\n";
+  return 1;
+}
+
 sub run ($self, @command) {
   $self->{run} = start(\@command, \$self->{stdin}, \$self->{stdout}, \$self->{stderr}, $self->{timeout} = timeout(60));
 }

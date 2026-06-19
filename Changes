@@ -1,5 +1,7 @@
 
 0.12  UNRELEASED
+  - Fixed bug in MCP::Server::Transport::Stdio where the server could disconnect when reading from Windows pipes,
+    such as when spawned by Claude Desktop.
 
 0.11  2026-06-19
   - Added OAuth scope support, so MCP servers can act as OAuth 2.0 resource servers.

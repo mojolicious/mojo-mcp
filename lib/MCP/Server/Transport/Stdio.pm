@@ -9,9 +9,13 @@ use Scalar::Util qw(blessed);
 sub handle_requests ($self) {
   my $server = $self->server;
 
+  binmode STDIN,  ':raw';
+  binmode STDOUT, ':raw';
   STDOUT->autoflush(1);
-  while (my $input = <>) {
-    chomp $input;
+
+  my $buffer = '';
+  while (defined(my $input = _read_line(\$buffer))) {
+    next if $input eq '';
     my $request = eval { decode_json($input) };
     next unless my $response = $server->handle($request, MCP::Server::Context->new(transport => $self));
 
@@ -20,6 +24,19 @@ sub handle_requests ($self) {
     }
     else { _print_response($response) }
   }
+}
+
+sub _read_line ($buffer) {
+  while (index($$buffer, "\n") < 0) {
+    last unless sysread STDIN, my $chunk, 131072;
+    $$buffer .= $chunk;
+  }
+  return undef if $$buffer eq '';
+
+  my $pos  = index($$buffer, "\n");
+  my $line = $pos < 0 ? substr($$buffer, 0, length($$buffer), '') : substr($$buffer, 0, $pos + 1, '');
+  $line =~ s/\r?\n?$//;
+  return $line;
 }
 
 sub notify ($self, $session_id, $method, $params = {}) {
