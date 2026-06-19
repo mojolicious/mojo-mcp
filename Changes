@@ -1,5 +1,5 @@
 
-0.12  UNRELEASED
+0.12  2026-06-19
   - Fixed bug in MCP::Server::Transport::Stdio where the server could disconnect when reading from Windows pipes,
     such as when spawned by Claude Desktop.
 
