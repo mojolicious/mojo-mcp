@@ -1,4 +1,6 @@
 
+0.12  UNRELEASED
+
 0.11  2026-06-19
   - Added OAuth scope support, so MCP servers can act as OAuth 2.0 resource servers.
   - Added scopes attribute to MCP::Primitive, and therefore to MCP::Tool, MCP::Prompt, and MCP::Resource.
