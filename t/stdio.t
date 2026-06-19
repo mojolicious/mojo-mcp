@@ -110,6 +110,13 @@ subtest 'Tool call (with progress)' => sub {
   is_deeply $res->{result}, {content => [{text => 'Echo: hi', type => 'text'}], isError => false}, 'tool call result';
 };
 
+subtest 'Scoped tool (no scope enforcement over stdio)' => sub {
+  my $res = $test->request('tools/call', {name => 'echo_scoped', arguments => {msg => 'hi'}});
+  is $res->{jsonrpc}, '2.0', 'JSON-RPC version';
+  is $res->{id},      9,     'request id';
+  is_deeply $res->{result}, {content => [{text => 'Echo: hi', type => 'text'}], isError => false}, 'tool call result';
+};
+
 ok $test->stop, 'process stopped';
 
 done_testing;

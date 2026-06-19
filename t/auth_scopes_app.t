@@ -119,7 +119,6 @@ subtest 'Read-only token' => sub {
     my $result = $client->list_tools;
     is $result->{tools}[0]{name}, 'read_tool', 'read tool present';
     is $result->{tools}[1],       undef,       'no more tools';
-    is_deeply $result->{tools}[0]{authorization}, {scopes => ['mcp:read']}, 'scopes advertised';
 
     is $client->call_tool('read_tool')->{content}[0]{text}, 'Read result', 'read tool call result';
     eval { $client->call_tool('write_tool') };

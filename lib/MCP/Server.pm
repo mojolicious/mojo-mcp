@@ -133,10 +133,10 @@ sub _handle_prompts_list ($self, $context) {
 sub _handle_prompts_get ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
-  return _jsonrpc_error(METHOD_NOT_FOUND, "Prompt '$name' not found")
+  return _jsonrpc_error(METHOD_NOT_FOUND, "Prompt '$name' not found", $id)
     unless my $prompt = first { $_->name eq $name } @{$self->_prompts($context)};
-  if (my $err = $self->_check_scope($prompt, $context)) { return $err }
-  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $prompt->validate_input($args);
+  if (my $err = $self->_check_scope($prompt, $context, $id)) { return $err }
+  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments', $id) if $prompt->validate_input($args);
 
   my $result = $prompt->call($args, $context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
@@ -161,9 +161,9 @@ sub _handle_resources_list ($self, $context) {
 
 sub _handle_resources_read ($self, $params, $id, $context) {
   my $uri = $params->{uri} // '';
-  return _jsonrpc_error(RESOURCE_NOT_FOUND, 'Resource not found')
+  return _jsonrpc_error(RESOURCE_NOT_FOUND, 'Resource not found', $id)
     unless my $resource = first { $_->uri eq $uri } @{$self->_resources($context)};
-  if (my $err = $self->_check_scope($resource, $context)) { return $err }
+  if (my $err = $self->_check_scope($resource, $context, $id)) { return $err }
 
   my $result = $resource->call($context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
@@ -173,10 +173,10 @@ sub _handle_resources_read ($self, $params, $id, $context) {
 sub _handle_tools_call ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
-  return _jsonrpc_error(METHOD_NOT_FOUND, "Tool '$name' not found")
+  return _jsonrpc_error(METHOD_NOT_FOUND, "Tool '$name' not found", $id)
     unless my $tool = first { $_->name eq $name } @{$self->_tools($context)};
-  if (my $err = $self->_check_scope($tool, $context)) { return $err }
-  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $tool->validate_input($args);
+  if (my $err = $self->_check_scope($tool, $context, $id)) { return $err }
+  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments', $id) if $tool->validate_input($args);
 
   my $result = $tool->call($args, $context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
@@ -192,20 +192,19 @@ sub _handle_tools_list ($self, $context) {
     if (my $output_schema = $tool->output_schema) { $info->{outputSchema} = $output_schema }
 
     my $annotations = $tool->annotations;
-    $info->{annotations}   = $annotations        if keys %$annotations;
-    $info->{authorization} = {scopes => $scopes} if @$scopes;
+    $info->{annotations} = $annotations if keys %$annotations;
     push @tools, $info;
   }
 
   return {tools => \@tools};
 }
 
-sub _check_scope ($self, $primitive, $context) {
+sub _check_scope ($self, $primitive, $context, $id) {
   my $scopes = $primitive->scopes;
   return undef unless @$scopes;
   return undef if $context->has_scope(@$scopes);
   $context->insufficient_scope($scopes);
-  return _jsonrpc_error(INSUFFICIENT_SCOPE, 'Insufficient scope');
+  return _jsonrpc_error(INSUFFICIENT_SCOPE, 'Insufficient scope', $id);
 }
 
 sub _jsonrpc_error ($code, $message, $id = undef) {

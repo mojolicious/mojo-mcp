@@ -60,7 +60,10 @@ sub _challenge_header ($self, %extra) {
 
 sub _extract_session_id ($self, $c) { return $c->req->headers->header('Mcp-Session-Id') }
 
-sub _scopes ($self, $c) { return ($c->stash('mcp.auth') // {})->{scopes} // [] }
+sub _scopes ($self, $c) {
+  return undef unless $self->auth;
+  return ($c->stash('mcp.auth') // {})->{scopes} // [];
+}
 
 sub _unauthorized ($self, $c) {
   $c->res->headers->header('WWW-Authenticate' => $self->_challenge_header);

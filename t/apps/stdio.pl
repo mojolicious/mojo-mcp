@@ -49,5 +49,14 @@ $server->tool(
     return "Echo: $args->{msg}";
   }
 );
+$server->tool(
+  name         => 'echo_scoped',
+  description  => 'Echo the input text, requires a scope',
+  scopes       => ['mcp:read'],
+  input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
+  code         => sub ($tool, $args) {
+    return "Echo: $args->{msg}";
+  }
+);
 
 $server->to_stdio;

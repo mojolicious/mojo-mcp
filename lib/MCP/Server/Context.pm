@@ -1,11 +1,11 @@
 package MCP::Server::Context;
 use Mojo::Base -base, -signatures;
 
-has [qw(controller insufficient_scope progress_token session_id transport)];
-has scopes => sub { [] };
+has [qw(controller insufficient_scope progress_token scopes session_id transport)];
 
 sub has_scope ($self, @needed) {
-  my %granted = map { $_ => 1 } @{$self->scopes};
+  return 1 unless defined(my $scopes = $self->scopes);
+  my %granted = map { $_ => 1 } @$scopes;
   for my $scope (@needed) { return 0 unless $granted{$scope} }
   return 1;
 }
@@ -81,7 +81,8 @@ Identifier of the session this request belongs to.
   $context   = $context->scopes(['mcp:read', 'mcp:write']);
 
 OAuth scopes granted to the current request, as an array reference, populated from the C<auth> hook of the HTTP
-transport. Defaults to an empty array reference.
+transport. C<undef> (the default) imposes no scope restriction, so scopes are only enforced for authenticated
+requests that provide them.
 
 =head2 transport
 
@@ -99,7 +100,7 @@ L<MCP::Server::Context> inherits all methods from L<Mojo::Base> and implements t
   my $bool = $context->has_scope('mcp:write');
   my $bool = $context->has_scope('mcp:read', 'mcp:write');
 
-Returns true if every given scope is present in L</"scopes">.
+Returns true if every given scope is present in L</"scopes">, or if L</"scopes"> is C<undef> (no restriction).
 
 =head2 notify
 
