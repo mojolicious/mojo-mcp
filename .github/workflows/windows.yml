@@ -19,7 +19,12 @@ jobs:
       - name: perl -V
         run: perl -V
       - name: Install dependencies
-        run: cpanm -n --verbose --installdeps .
+        shell: bash
+        # Net::IDN::Encode has an XS build failure on Strawberry Perl, so install
+        # JSON::Validator without it; its IDN formats are not used by MCP
+        run: |
+          cpanm -n --force JSON::Validator || true
+          cpanm -n --installdeps .
       - name: Run tests
         run: prove -l t
         env:
