@@ -1,9 +1,10 @@
 package MCP::Server;
 use Mojo::Base 'Mojo::EventEmitter', -signatures;
 
-use List::Util     qw(first);
-use Mojo::JSON     qw(false true);
-use MCP::Constants qw(INVALID_PARAMS INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION RESOURCE_NOT_FOUND);
+use List::Util qw(first);
+use Mojo::JSON qw(false true);
+use MCP::Constants
+  qw(INSUFFICIENT_SCOPE INVALID_PARAMS INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION RESOURCE_NOT_FOUND);
 use MCP::Prompt;
 use MCP::Resource;
 use MCP::Server::Transport::HTTP;
@@ -70,6 +71,16 @@ sub notify_list_changed ($self, $kind) {
   return $transport->notify_all("notifications/$kind/list_changed");
 }
 
+sub oauth_metadata ($self, %args) {
+  my %scopes;
+  for my $primitive (@{$self->tools}, @{$self->prompts}, @{$self->resources}) {
+    $scopes{$_} = 1 for @{$primitive->scopes};
+  }
+  my $metadata = {%args};
+  $metadata->{scopes_supported} //= [sort keys %scopes] if keys %scopes;
+  return $metadata;
+}
+
 sub prompt ($self, %args) {
   my $prompt = MCP::Prompt->new(%args);
   push @{$self->prompts}, $prompt;
@@ -111,6 +122,7 @@ sub _handle_initialize ($self, $params) {
 sub _handle_prompts_list ($self, $context) {
   my @prompts;
   for my $prompt (@{$self->_prompts($context)}) {
+    next unless $context->has_scope(@{$prompt->scopes});
     my $info = {name => $prompt->name, description => $prompt->description, arguments => $prompt->arguments};
     push @prompts, $info;
   }
@@ -121,9 +133,10 @@ sub _handle_prompts_list ($self, $context) {
 sub _handle_prompts_get ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
-  return _jsonrpc_error(METHOD_NOT_FOUND, "Prompt '$name' not found")
+  return _jsonrpc_error(METHOD_NOT_FOUND, "Prompt '$name' not found", $id)
     unless my $prompt = first { $_->name eq $name } @{$self->_prompts($context)};
-  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $prompt->validate_input($args);
+  if (my $err = $self->_check_scope($prompt, $context, $id)) { return $err }
+  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments', $id) if $prompt->validate_input($args);
 
   my $result = $prompt->call($args, $context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
@@ -133,6 +146,7 @@ sub _handle_prompts_get ($self, $params, $id, $context) {
 sub _handle_resources_list ($self, $context) {
   my @resources;
   for my $resource (@{$self->_resources($context)}) {
+    next unless $context->has_scope(@{$resource->scopes});
     my $info = {
       uri         => $resource->uri,
       name        => $resource->name,
@@ -147,8 +161,9 @@ sub _handle_resources_list ($self, $context) {
 
 sub _handle_resources_read ($self, $params, $id, $context) {
   my $uri = $params->{uri} // '';
-  return _jsonrpc_error(RESOURCE_NOT_FOUND, 'Resource not found')
+  return _jsonrpc_error(RESOURCE_NOT_FOUND, 'Resource not found', $id)
     unless my $resource = first { $_->uri eq $uri } @{$self->_resources($context)};
+  if (my $err = $self->_check_scope($resource, $context, $id)) { return $err }
 
   my $result = $resource->call($context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
@@ -158,9 +173,10 @@ sub _handle_resources_read ($self, $params, $id, $context) {
 sub _handle_tools_call ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
-  return _jsonrpc_error(METHOD_NOT_FOUND, "Tool '$name' not found")
+  return _jsonrpc_error(METHOD_NOT_FOUND, "Tool '$name' not found", $id)
     unless my $tool = first { $_->name eq $name } @{$self->_tools($context)};
-  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments') if $tool->validate_input($args);
+  if (my $err = $self->_check_scope($tool, $context, $id)) { return $err }
+  return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments', $id) if $tool->validate_input($args);
 
   my $result = $tool->call($args, $context);
   return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
@@ -170,6 +186,7 @@ sub _handle_tools_call ($self, $params, $id, $context) {
 sub _handle_tools_list ($self, $context) {
   my @tools;
   for my $tool (@{$self->_tools($context)}) {
+    next unless $context->has_scope(@{$tool->scopes});
     my $info = {name => $tool->name, description => $tool->description, inputSchema => $tool->input_schema};
     if (my $output_schema = $tool->output_schema) { $info->{outputSchema} = $output_schema }
 
@@ -179,6 +196,13 @@ sub _handle_tools_list ($self, $context) {
   }
 
   return {tools => \@tools};
+}
+
+sub _check_scope ($self, $primitive, $context, $id) {
+  my $scopes = $primitive->scopes;
+  return undef if $context->has_scope(@$scopes);
+  $context->insufficient_scope($scopes);
+  return _jsonrpc_error(INSUFFICIENT_SCOPE, 'Insufficient scope', $id);
 }
 
 sub _jsonrpc_error ($code, $message, $id = undef) {
@@ -338,6 +362,17 @@ Handle a JSON-RPC request and return a response.
 
 Broadcast a C<notifications/$kind/list_changed> JSON-RPC notification to all connected clients. Returns true on
 success, or C<undef> if no notification could be delivered.
+
+=head2 oauth_metadata
+
+  my $metadata = $server->oauth_metadata(
+    resource              => 'https://example.com/mcp',
+    authorization_servers => ['https://auth.example.com']
+  );
+
+Build an OAuth 2.0 Protected Resource Metadata document from the given fields, to be served from
+C</.well-known/oauth-protected-resource>. Unless C<scopes_supported> is provided, it is filled in with the sorted
+union of all scopes declared by registered tools, prompts, and resources.
 
 =head2 prompt
 

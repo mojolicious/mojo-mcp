@@ -7,7 +7,8 @@ use Mojo::JSON     qw(from_json);
 use Mojo::UserAgent;
 use Scalar::Util qw(weaken);
 
-has name => 'PerlClient';
+has headers => sub { {} };
+has name    => 'PerlClient';
 has 'session_id';
 has ua      => sub { Mojo::UserAgent->new };
 has url     => sub {'http://localhost:3000/mcp'};
@@ -30,7 +31,7 @@ sub call_tool ($self, $name, $args = {}) {
 
 sub delete_session ($self) {
   return undef unless my $session_id = $self->session_id;
-  my $tx = $self->ua->build_tx(DELETE => $self->url => {'Mcp-Session-Id' => $session_id});
+  my $tx = $self->ua->build_tx(DELETE => $self->url => {%{$self->headers}, 'Mcp-Session-Id' => $session_id});
   $tx = $self->ua->start($tx);
   if (my $err = $tx->error) {
     croak "$err->{code} response: $err->{message}" if $err->{code};
@@ -69,7 +70,8 @@ sub read_resource ($self, $uri) {
 }
 
 sub send_request ($self, $request) {
-  my $headers = {Accept => 'application/json, text/event-stream', 'Content-Type' => 'application/json'};
+  my $headers
+    = {%{$self->headers}, Accept => 'application/json, text/event-stream', 'Content-Type' => 'application/json'};
   if (my $session_id = $self->session_id) { $headers->{'Mcp-Session-Id'} = $session_id }
   my $ua = $self->ua;
   my $tx = $ua->build_tx(POST => $self->url => $headers => json => $request);
@@ -132,6 +134,14 @@ L<MCP::Client> is a client for MCP (Model Context Protocol) that communicates wi
 =head1 ATTRIBUTES
 
 L<MCP::Client> inherits all attributes from L<Mojo::Base> and implements the following new ones.
+
+=head2 headers
+
+  my $headers = $client->headers;
+  $client     = $client->headers({Authorization => 'Bearer abc123'});
+
+Extra HTTP headers to send with every request, as a hash reference. Useful for passing an C<Authorization> header to
+an MCP server that requires OAuth bearer authentication. Defaults to an empty hash reference.
 
 =head2 name
 

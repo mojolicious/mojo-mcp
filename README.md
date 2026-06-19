@@ -15,6 +15,7 @@ specification is getting regular updates which we will implement. Breaking chang
   * Streamable HTTP and Stdio transports
   * Notifications for list changes (tools, prompts, resources)
   * Progress tracking for long-running operations
+  * OAuth scopes for tools, prompts and resources
   * Scalable with pre-forking web server and async tools using promises
   * HTTP client for testing
   * Can be embedded in Mojolicious web apps
@@ -51,7 +52,8 @@ any '/mcp' => $server->to_action;
 app->start;
 ```
 
-Authentication can be added by the web application, just like for any other route.
+Authentication can be added by the web application, just like for any other route. OAuth scopes can be enforced per
+tool, prompt and resource.
 
 ## Server-to-Client Streaming
 

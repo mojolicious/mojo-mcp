@@ -3,6 +3,8 @@ use Mojo::Base -base, -signatures;
 
 use MCP::Server::Context;
 
+has scopes => sub { [] };
+
 sub context ($self) { $self->{context} || MCP::Server::Context->new }
 
 1;
@@ -24,6 +26,20 @@ MCP::Primitive - Primitive base class
 
 L<MCP::Primitive> is a base class for MCP (Model Context Protocol) primitives such as L<MCP::Tool>, L<MCP::Prompt>,
 and L<MCP::Resource>.
+
+=head1 ATTRIBUTES
+
+L<MCP::Primitive> implements the following attributes.
+
+=head2 scopes
+
+  my $scopes = $primitive->scopes;
+  $primitive = $primitive->scopes(['mcp:read', 'mcp:write']);
+
+OAuth scopes required to list or call this primitive, as an array reference; all of them must be granted. This is a
+local authorization policy layered on the HTTP transport's L<MCP::Server::Transport::HTTP/"auth"> hook, not wire-level
+MCP metadata, and is only enforced for requests that supply scopes (so it has no effect over stdio). Defaults to no
+required scopes.
 
 =head1 METHODS
 
