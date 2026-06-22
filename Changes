@@ -1,5 +1,6 @@
 
-0.13 UNRELEASED
+0.13  2026-06-22
+  - Switched from JSON::Valdiator to JSON::Schema::Tiny for better portability.
 
 0.12  2026-06-19
   - Fixed bug in MCP::Server::Transport::Stdio where the server could disconnect when reading from Windows pipes,
