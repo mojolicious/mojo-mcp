@@ -1,4 +1,6 @@
 
+0.14  UNRELEASED
+
 0.13  2026-06-22
   - Switched from JSON::Valdiator to JSON::Schema::Tiny for better portability.
 
