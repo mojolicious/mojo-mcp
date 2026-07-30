@@ -1,4 +1,6 @@
 
+0.16  UNRELEASED
+
 0.15  2026-07-30
   - Updated to MCP protocol revision 2026-07-28, which makes the protocol stateless. This is a breaking change for
     every user of this module.
