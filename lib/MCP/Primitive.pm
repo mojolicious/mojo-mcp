@@ -1,11 +1,22 @@
 package MCP::Primitive;
 use Mojo::Base -base, -signatures;
 
+use Carp qw(croak);
 use MCP::Server::Context;
 
-has scopes => sub { [] };
+has cache_scope => 'public';
+has cache_ttl   => 0;
+has scopes      => sub { [] };
 
 sub context ($self) { $self->{context} || MCP::Server::Context->new }
+
+sub input_required ($self, $input_requests = undef, $state = undef) {
+  croak 'Input required results need input requests or state' unless $input_requests || defined $state;
+  my $result = {resultType => 'input_required'};
+  $result->{inputRequests} = $input_requests                    if $input_requests;
+  $result->{requestState}  = $self->context->seal_state($state) if defined $state;
+  return $result;
+}
 
 1;
 
@@ -31,6 +42,23 @@ and L<MCP::Resource>.
 
 L<MCP::Primitive> implements the following attributes.
 
+=head2 cache_scope
+
+  my $scope  = $primitive->cache_scope;
+  $primitive = $primitive->cache_scope('private');
+
+Cache scope advertised for results derived from this primitive, either C<public> for results shared by every caller,
+or C<private> for results a gateway may only cache per caller. Defaults to C<public>, and is forced to C<private>
+whenever L</"scopes"> is not empty.
+
+=head2 cache_ttl
+
+  my $ttl    = $primitive->cache_ttl;
+  $primitive = $primitive->cache_ttl(60_000);
+
+How long results derived from this primitive may be cached, in milliseconds. Defaults to C<0>, which means results
+must be revalidated on every request.
+
 =head2 scopes
 
   my $scopes = $primitive->scopes;
@@ -54,6 +82,34 @@ its notification methods from later callbacks.
 
   # Get controller for requests using the HTTP transport
   my $c = $primitive->context->controller;
+
+=head2 input_required
+
+  my $result = $primitive->input_required($input_requests);
+  my $result = $primitive->input_required($input_requests, $state);
+  my $result = $primitive->input_required(undef, $state);
+
+Returns an C<input_required> result, asking the client to gather information and call again. At least one of the two
+arguments is required.
+
+  return $tool->input_required({
+    confirm => {
+      method => 'elicitation/create',
+      params => {
+        message         => 'Really deploy to production?',
+        requestedSchema => {type => 'object', properties => {ok => {type => 'boolean'}}}
+      }
+    }
+  }, {target => $args->{target}});
+
+Input requests are keyed by names of your choosing, which the client mirrors back in
+L<MCP::Server::Context/"input_responses">. Only ask for capabilities the client declared in
+L<MCP::Server::Context/"client_capabilities">.
+
+The optional state is any Perl data structure, and is sealed with L<MCP::Server::Context/"seal_state"> before it
+travels through the client, so a retry can pick up where the first call left off without the server having to
+remember anything. Read it back with L<MCP::Server::Context/"request_state">, which returns C<undef> for state that
+cannot be trusted; treat that like a first call and ask again.
 
 =head1 SEE ALSO
 

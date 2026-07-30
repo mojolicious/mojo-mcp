@@ -2,9 +2,11 @@ package MCP::Server::Transport::Stdio;
 use Mojo::Base 'MCP::Server::Transport', -signatures;
 
 use MCP::Server::Context;
-use Mojo::JSON qw(decode_json encode_json);
-use Mojo::Log;
+use MCP::Server::Subscription;
+use Mojo::JSON   qw(decode_json encode_json);
 use Scalar::Util qw(blessed);
+
+has subscriptions => sub { {} };
 
 sub handle_requests ($self) {
   my $server = $self->server;
@@ -17,21 +19,34 @@ sub handle_requests ($self) {
   while (defined(my $input = _read_line(\$buffer))) {
     next if $input eq '';
     my $request = eval { decode_json($input) };
-    next unless my $response = $server->handle($request, MCP::Server::Context->new(transport => $self));
+    next if $self->_cancel($request);
 
-    if (blessed($response) && $response->isa('Mojo::Promise')) {
-      $response->then(sub { _print_response($_[0]) })->wait;
+    my $context = MCP::Server::Context->new(stream => \&_print_response, transport => $self);
+    next unless my $response = $server->handle($request, $context);
+
+    if    (blessed($response) && $response->isa('MCP::Server::Subscription')) { $self->_subscribe($response) }
+    elsif (blessed($response) && $response->isa('Mojo::Promise')) {
+      $response->then(sub { _print_response($_[0]) unless $context->is_cancelled })->wait;
     }
     else { _print_response($response) }
   }
 }
 
-sub notify ($self, $session_id, $method, $params = {}) {
-  _print_response({jsonrpc => '2.0', method => $method, params => $params});
+sub notify_all ($self, $method, $params = {}) {
+  for my $subscription (values %{$self->subscriptions}) {
+    next unless $subscription->wants($method);
+    _print_response($subscription->notification($method, $params));
+  }
   return 1;
 }
 
-sub notify_all ($self, $method, $params = {}) { $self->notify(undef, $method, $params) }
+sub _cancel ($self, $request) {
+  return 0 unless ref $request eq 'HASH';
+  return 0 unless ($request->{method} // '') eq 'notifications/cancelled';
+  my $id = ($request->{params} // {})->{requestId};
+  delete $self->subscriptions->{$id} if defined $id;
+  return 1;
+}
 
 sub _print_response ($response) { print encode_json($response) . "\n" }
 
@@ -46,6 +61,11 @@ sub _read_line ($buffer) {
   my $line = $pos < 0 ? substr($$buffer, 0, length($$buffer), '') : substr($$buffer, 0, $pos + 1, '');
   $line =~ s/\r?\n?$//;
   return $line;
+}
+
+sub _subscribe ($self, $subscription) {
+  $self->subscriptions->{$subscription->id} = $subscription;
+  return _print_response($subscription->acknowledgement);
 }
 
 1;
@@ -68,9 +88,24 @@ L<MCP::Server::Transport::Stdio> is a transport for MCP (Model Context Protocol)
 standard input (STDIN) and writes responses to standard output (STDOUT). It is designed for command-line tools and
 debugging tasks.
 
+All messages share the one channel, so a C<subscriptions/listen> request is answered with an acknowledgement
+notification and then left open, with its JSON-RPC response withheld until the client cancels it.
+
+Requests are processed strictly in order, so a C<notifications/cancelled> notification cannot be read while the
+request it refers to is still in flight; it can only cancel a subscription. Use L<MCP::Server::Transport::HTTP> for
+workloads where cancelling a running tool matters.
+
 =head1 ATTRIBUTES
 
-L<MCP::Server::Transport::Stdio> inherits all attributes from L<MCP::Server::Transport>.
+L<MCP::Server::Transport::Stdio> inherits all attributes from L<MCP::Server::Transport> and implements the following
+new ones.
+
+=head2 subscriptions
+
+  my $subscriptions = $stdio->subscriptions;
+  $stdio            = $stdio->subscriptions({});
+
+Registry of active L<MCP::Server::Subscription> objects, keyed by the id of the request that opened them.
 
 =head1 METHODS
 
@@ -83,19 +118,13 @@ ones.
 
 Reads requests from standard input and prints responses to standard output.
 
-=head2 notify
-
-  my $bool = $stdio->notify($session_id, $method);
-  my $bool = $stdio->notify($session_id, $method, {foo => 'bar'});
-
-Send a JSON-RPC notification to standard output. The C<$session_id> is ignored.
-
 =head2 notify_all
 
   my $bool = $stdio->notify_all($method);
   my $bool = $stdio->notify_all($method, {foo => 'bar'});
 
-Send a JSON-RPC notification to standard output.
+Send a JSON-RPC notification to standard output, once for every subscription in L</"subscriptions"> that asked for
+it.
 
 =head1 SEE ALSO
 

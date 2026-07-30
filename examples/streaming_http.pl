@@ -1,5 +1,5 @@
 #
-# This example demonstrates progress notifications for a long-running MCP tool
+# This example demonstrates progress notifications and cancellation for a long-running MCP tool
 #
 # mcp.json:
 # {
@@ -36,10 +36,11 @@ $server->tool(
         $promise->resolve("Processed $total items");
       }
     );
+    $context->on(cancelled => sub ($context) { Mojo::IOLoop->remove($id) });
     return $promise;
   }
 );
 
-any '/mcp' => $server->to_action({streaming => 1});
+any '/mcp' => $server->to_action;
 
 app->start;

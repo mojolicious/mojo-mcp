@@ -30,6 +30,6 @@ WriteMakefile(
     },
   },
   PREREQ_PM =>
-    {'CryptX' => '0.087', 'IPC::Run' => '20231003.0', 'JSON::Schema::Tiny' => '0.031', Mojolicious => '9.41'},
+    {'CryptX' => '0.087', 'IPC::Run' => '20231003.0', 'JSON::Schema::Tiny' => '0.034', Mojolicious => '9.41'},
   test => {TESTS => 't/*.t t/*/*.t'}
 );

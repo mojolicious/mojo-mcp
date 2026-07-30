@@ -30,7 +30,7 @@ sub validate_input ($self, $args) {
 }
 
 sub _type_check ($self, $result) {
-  return $result if ref $result eq 'HASH' && exists $result->{messages};
+  return $result if ref $result eq 'HASH' && (exists $result->{messages} || exists $result->{resultType});
   return $self->text_prompt($result);
 }
 

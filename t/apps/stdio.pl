@@ -28,7 +28,8 @@ $server->tool(
   description  => 'Echo the input text and log a notification',
   input_schema => {type => 'object', properties => {msg => {type => 'string'}}, required => ['msg']},
   code         => sub ($tool, $args) {
-    $tool->context->notify('notifications/message', {level => 'info', data => $args->{msg}});
+    $tool->context->notify_log(debug => 'too quiet');
+    $tool->context->notify_log(info  => $args->{msg});
     return "Echo: $args->{msg}";
   }
 );
@@ -58,5 +59,13 @@ $server->tool(
     return "Echo: $args->{msg}";
   }
 );
+$server->tool(
+  name        => 'boom',
+  description => 'Throw an exception',
+  code        => sub ($tool, $args) {
+    die "kaboom\n";
+  }
+);
 
+$server->log->level('fatal');
 $server->to_stdio;

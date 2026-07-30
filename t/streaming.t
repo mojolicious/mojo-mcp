@@ -4,318 +4,117 @@ use Test::More;
 
 use Mojolicious::Lite;
 use Test::Mojo;
-use Mojo::IOLoop;
-use Mojo::JSON qw(from_json true);
-use Mojo::Promise;
 use MCP::Client;
+use MCP::Constants qw(META_SUBSCRIPTION_ID PROTOCOL_VERSION);
 use MCP::Server;
+use Mojo::IOLoop;
+use Mojo::JSON qw(true);
+use Mojo::Promise;
 
 my $server = MCP::Server->new;
 
 $server->tool(
-  name => 'push_log',
+  name => 'echo',
   code => sub ($tool, $args) {
-    $tool->context->notify('notifications/message', {level => 'info', data => 'hello stream'});
-    return 'pushed';
+    return 'echo';
   }
 );
-$server->tool(
-  name => 'notify_status',
-  code => sub ($tool, $args) {
-    my $sent = $tool->context->notify('notifications/message', {data => 'x'});
-    return $sent ? 'sent' : 'no stream';
+$server->prompt(
+  name => 'plan',
+  code => sub ($prompt, $args) {
+    return 'plan';
   }
 );
-$server->tool(
-  name => 'progress',
-  code => sub ($tool, $args) {
-    my $sent = $tool->context->notify_progress(1, 2, 'halfway');
-    return $sent ? 'sent' : 'no token';
-  }
-);
-$server->tool(
-  name => 'async_progress',
-  code => sub ($tool, $args) {
-    my $context = $tool->context;
-    my $promise = Mojo::Promise->new;
-    Mojo::IOLoop->timer(
-      0.1 => sub {
-        $context->notify_progress(1, 2, 'late');
-        $promise->resolve('done');
-      }
-    );
-    return $promise;
+$server->resource(
+  uri  => 'file:///report',
+  code => sub ($resource) {
+    return 'report';
   }
 );
 
-any '/mcp' => $server->to_action({streaming => 1, heartbeat => 0, session_timeout => 0.5});
+any '/mcp' => $server->to_action({streaming => 1, heartbeat => 0});
 
-my $t = Test::Mojo->new;
+my $t      = Test::Mojo->new;
+my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
 
-subtest 'No session' => sub {
-  $t->get_ok('/mcp')->status_is(400)->json_is('/error' => 'Missing session ID');
-  $t->delete_ok('/mcp')->status_is(400)->json_is('/error' => 'Missing session ID');
+sub settle ($delay = 0.1) {
+  my $tick = Mojo::Promise->new;
+  Mojo::IOLoop->timer($delay => sub { $tick->resolve });
+  return $tick->wait;
+}
+
+subtest 'Discovery' => sub {
+  my $caps = $client->discover->{capabilities};
+  is $caps->{prompts}{listChanged},   true, 'prompts listChanged advertised';
+  is $caps->{resources}{listChanged}, true, 'resources listChanged advertised';
+  is $caps->{tools}{listChanged},     true, 'tools listChanged advertised';
 };
 
-subtest 'Unknown session' => sub {
-  $t->get_ok('/mcp' => {'Mcp-Session-Id' => 'nope'})->status_is(404);
-  $t->delete_ok('/mcp' => {'Mcp-Session-Id' => 'nope'})->status_is(404);
-
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  eval { $client->session_id('nope'); $client->ping };
-  like $@, qr/404 response/, 'POST with unknown session is rejected';
+subtest 'Other methods' => sub {
+  $t->get_ok('/mcp')->status_is(405)->json_is('/error' => 'Method not allowed');
+  $t->delete_ok('/mcp')->status_is(405)->json_is('/error' => 'Method not allowed');
 };
 
 subtest 'List changed' => sub {
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  my $caps   = $client->initialize_session->{capabilities};
-  is $caps->{tools}{listChanged},     true, 'tools listChanged advertised';
-  is $caps->{prompts}{listChanged},   true, 'prompts listChanged advertised';
-  is $caps->{resources}{listChanged}, true, 'resources listChanged advertised';
-
-  my $got_notification = Mojo::Promise->new;
-  my $msg;
-  my $url = $t->ua->server->url->path('/mcp');
-  my $tx  = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $client->session_id});
-  $tx->res->content->on(
-    sse => sub ($content, $event = undef) {
-      return if $msg;
-      return unless $event && $event->{text} && (my $parsed = eval { from_json($event->{text}) });
-      $msg = $parsed;
-      $got_notification->resolve;
+  my @messages;
+  ok $client->listen(
+    {promptsListChanged => true, resourceSubscriptions => true, toolsListChanged => true},
+    sub ($message) {
+      push @messages, $message;
+      if (@messages == 1) {
+        $server->notify_list_changed('resources');
+        $server->notify_list_changed('prompts');
+      }
+      return @messages < 2;
     }
-  );
-  $t->ua->start_p($tx)->catch(sub { });
-  Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
+    ),
+    'stream closed by callback';
 
+  my $ack = $messages[0];
+  is $ack->{jsonrpc}, '2.0',                                      'JSON-RPC version';
+  is $ack->{method},  'notifications/subscriptions/acknowledged', 'acknowledged first';
+  is_deeply $ack->{params}{notifications}, {promptsListChanged => true, toolsListChanged => true},
+    'unsupported notification types dropped';
+  ok my $id = $ack->{params}{_meta}{+META_SUBSCRIPTION_ID}, 'subscription id';
+
+  my $changed = $messages[1];
+  is $changed->{method}, 'notifications/prompts/list_changed', 'unsubscribed type never delivered';
+  is $changed->{params}{_meta}{+META_SUBSCRIPTION_ID}, $id,    'subscription id';
+  is scalar @messages,                                 2,      'no more messages';
+};
+
+subtest 'List changed (no subscriptions)' => sub {
+  settle;
+  is_deeply $server->transport->subscriptions, {}, 'subscription removed on disconnect';
   ok $server->notify_list_changed('tools'), 'broadcast attempted';
-  $got_notification->timeout(5)->wait;
-  is $msg->{jsonrpc}, '2.0',                              'JSON-RPC version';
-  is $msg->{method},  'notifications/tools/list_changed', 'notification method';
-
-  $client->delete_session;
 };
 
-subtest 'List changed (no streams)' => sub {
-  ok $server->notify_list_changed('prompts'), 'broadcast attempted';
-};
+subtest 'Heartbeat' => sub {
+  my $transport = $server->transport;
+  $transport->heartbeat(0.1);
 
-subtest 'Bidirectional flow' => sub {
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $client->initialize_session;
-  ok $client->session_id, 'session id set';
-
-  my $got_notification = Mojo::Promise->new;
-  my $msg;
-  my $url = $t->ua->server->url->path('/mcp');
-  my $tx  = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $client->session_id});
-  $tx->res->content->on(
-    sse => sub ($content, $event = undef) {
-      return if $msg;
-      return unless $event && $event->{text} && (my $parsed = eval { from_json($event->{text}) });
-      $msg = $parsed;
-      $got_notification->resolve;
-    }
-  );
+  my $request = $client->build_request('subscriptions/listen', {notifications => {toolsListChanged => true}});
+  my $headers = {
+    Accept                 => 'text/event-stream',
+    'MCP-Protocol-Version' => PROTOCOL_VERSION,
+    'Mcp-Method'           => 'subscriptions/listen'
+  };
+  my $tx = $t->ua->build_tx(POST => $t->ua->server->url->path('/mcp') => $headers => json => $request);
   $t->ua->start_p($tx)->catch(sub { });
   Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
   is $tx->res->code,                  200,                 'stream open';
   is $tx->res->headers->content_type, 'text/event-stream', 'right content type';
 
-  my $result = $client->call_tool('push_log');
-  is $result->{content}[0]{text}, 'pushed', 'tool call result';
-
-  $got_notification->timeout(5)->wait;
-  is $msg->{jsonrpc},       '2.0',                   'JSON-RPC version';
-  is $msg->{method},        'notifications/message', 'notification method';
-  is $msg->{params}{data},  'hello stream',          'notification payload';
-  is $msg->{params}{level}, 'info',                  'notification level';
-
-  $t->get_ok('/mcp' => {'Mcp-Session-Id' => $client->session_id})->status_is(409);
-
-  my $session_id = $client->session_id;
-  ok $client->delete_session, 'session deleted';
-  is $client->session_id, undef, 'session id cleared';
-
-  my $closed = Mojo::Promise->new;
-  $tx->on(finish => sub { $closed->resolve });
-  $closed->timeout(5)->wait unless $tx->is_finished;
-  ok $tx->is_finished, 'stream closed by server';
-
-  $t->get_ok('/mcp' => {'Mcp-Session-Id' => $session_id})->status_is(404);
-  $t->delete_ok('/mcp' => {'Mcp-Session-Id' => $session_id})->status_is(404);
-};
-
-subtest 'Notify (no stream)' => sub {
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $client->initialize_session;
-  my $result = $client->call_tool('notify_status');
-  is $result->{content}[0]{text}, 'no stream', 'notify returns false without an open stream';
-  $client->delete_session;
-};
-
-subtest 'Progress notifications' => sub {
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $client->initialize_session;
-
-  my $got_notification = Mojo::Promise->new;
-  my $msg;
-  my $url = $t->ua->server->url->path('/mcp');
-  my $tx  = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $client->session_id});
-  $tx->res->content->on(
-    sse => sub ($content, $event = undef) {
-      return if $msg;
-      return unless $event && $event->{text} && (my $parsed = eval { from_json($event->{text}) });
-      $msg = $parsed;
-      $got_notification->resolve;
-    }
-  );
-  $t->ua->start_p($tx)->catch(sub { });
-  Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
-
-  my $request
-    = $client->build_request('tools/call', {name => 'progress', arguments => {}, _meta => {progressToken => 'tok-1'}});
-  my $response = $client->send_request($request);
-  is $response->{result}{content}[0]{text}, 'sent', 'tool call result';
-
-  $got_notification->timeout(5)->wait;
-  is $msg->{jsonrpc},               '2.0',                    'JSON-RPC version';
-  is $msg->{method},                'notifications/progress', 'notification method';
-  is $msg->{params}{progressToken}, 'tok-1',                  'progress token echoed';
-  is $msg->{params}{progress},      1,                        'progress value';
-  is $msg->{params}{total},         2,                        'total value';
-  is $msg->{params}{message},       'halfway',                'progress message';
-
-  $client->delete_session;
-};
-
-subtest 'Progress notifications (async)' => sub {
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $client->initialize_session;
-
-  my $got_notification = Mojo::Promise->new;
-  my $msg;
-  my $url = $t->ua->server->url->path('/mcp');
-  my $tx  = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $client->session_id});
-  $tx->res->content->on(
-    sse => sub ($content, $event = undef) {
-      return if $msg;
-      return unless $event && $event->{text} && (my $parsed = eval { from_json($event->{text}) });
-      $msg = $parsed;
-      $got_notification->resolve;
-    }
-  );
-  $t->ua->start_p($tx)->catch(sub { });
-  Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
-
-  my $request = $client->build_request('tools/call',
-    {name => 'async_progress', arguments => {}, _meta => {progressToken => 'tok-2'}});
-  my $response = $client->send_request($request);
-  is $response->{result}{content}[0]{text}, 'done', 'tool call result';
-
-  $got_notification->timeout(5)->wait;
-  is $msg->{jsonrpc},               '2.0',                    'JSON-RPC version';
-  is $msg->{method},                'notifications/progress', 'notification method';
-  is $msg->{params}{progressToken}, 'tok-2',                  'progress token echoed';
-  is $msg->{params}{progress},      1,                        'progress value';
-  is $msg->{params}{total},         2,                        'total value';
-  is $msg->{params}{message},       'late',                   'progress message';
-
-  $client->delete_session;
-};
-
-subtest 'Progress (no token)' => sub {
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $client->initialize_session;
-  my $result = $client->call_tool('progress');
-  is $result->{content}[0]{text}, 'no token', 'notify_progress returns false without a token';
-  $client->delete_session;
-};
-
-subtest 'Delete (no stream)' => sub {
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $client->initialize_session;
-  my $session_id = $client->session_id;
-  ok $client->delete_session, 'session deleted';
-  $t->get_ok('/mcp' => {'Mcp-Session-Id' => $session_id})->status_is(404);
-};
-
-subtest 'Stream cleanup on disconnect' => sub {
-  my $transport = $server->transport;
-  my $client    = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $client->initialize_session;
-  my $session_id = $client->session_id;
-
-  my $url = $t->ua->server->url->path('/mcp');
-  my $tx  = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $session_id});
-  $t->ua->start_p($tx)->catch(sub { });
-  Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
-  ok $transport->sessions->{$session_id}->stream, 'stream registered';
-
-  my $closed = Mojo::Promise->new;
-  $tx->on(finish => sub { $closed->resolve });
-  $transport->sessions->{$session_id}->stream->finish;
-  $closed->timeout(5)->wait;
-  ok !$transport->sessions->{$session_id}->stream, 'stream cleared on finish';
-
-  $client->delete_session;
-};
-
-subtest 'Heartbeat' => sub {
-  my $transport = $server->transport;
-  $transport->heartbeat(1);
-  my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $client->initialize_session;
-  my $session_id = $client->session_id;
-
-  my $url = $t->ua->server->url->path('/mcp');
-  my $tx  = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $session_id});
-  $t->ua->start_p($tx)->catch(sub { });
-  Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
-  is $tx->res->code, 200, 'stream open';
-
   # SSE parser strips comments
   my $bytes = '';
   Mojo::IOLoop->stream($tx->connection)->on(read => sub ($stream, $chunk) { $bytes .= $chunk });
-
-  my $deadline = Mojo::Promise->new;
-  Mojo::IOLoop->timer(1.5 => sub { $deadline->resolve });
-  $deadline->wait;
+  settle 0.5;
   like $bytes, qr/: keepalive/, 'heartbeat sent';
 
+  Mojo::IOLoop->remove($tx->connection);
   $transport->heartbeat(0);
-  $client->delete_session;
-};
-
-subtest 'Session expiration' => sub {
-  my $sessions = $server->transport->sessions;
-
-  my $idle = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $idle->initialize_session;
-  my $idle_id = $idle->session_id;
-
-  my $open = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
-  $open->initialize_session;
-  my $open_id = $open->session_id;
-  my $url     = $t->ua->server->url->path('/mcp');
-  my $tx      = $t->ua->build_tx(GET => $url => {Accept => 'text/event-stream', 'Mcp-Session-Id' => $open_id});
-  $t->ua->start_p($tx)->catch(sub { });
-  Mojo::IOLoop->one_tick until $tx->res->code || $tx->error;
-
-  ok exists $sessions->{$idle_id}, 'idle session registered';
-  ok exists $sessions->{$open_id}, 'streaming session registered';
-
-  my $tick = Mojo::Promise->new;
-  Mojo::IOLoop->timer(1.5 => sub { $tick->resolve });
-  $tick->wait;
-
-  ok !exists $sessions->{$idle_id}, 'idle session swept';
-  ok exists $sessions->{$open_id},  'streaming session survives sweep';
-
-  $open->delete_session;
-
-  eval { $idle->ping };
-  like $@, qr/404 response/, 'POST for swept session is rejected';
+  settle;
+  is_deeply $transport->subscriptions, {}, 'subscription removed on disconnect';
 };
 
 done_testing;

@@ -1,65 +1,44 @@
 package MCP::Server;
 use Mojo::Base 'Mojo::EventEmitter', -signatures;
 
-use List::Util qw(first);
-use Mojo::JSON qw(false true);
-use MCP::Constants
-  qw(INSUFFICIENT_SCOPE INVALID_PARAMS INVALID_REQUEST METHOD_NOT_FOUND PARSE_ERROR PROTOCOL_VERSION RESOURCE_NOT_FOUND);
+use Crypt::PRNG qw(random_bytes);
+use List::Util  qw(first min);
+use Mojo::JSON  qw(false true);
+use Mojo::Log;
+use MCP::Constants qw(INSUFFICIENT_SCOPE INTERNAL_ERROR INVALID_PARAMS INVALID_REQUEST META_CLIENT_CAPABILITIES),
+  qw(META_CLIENT_INFO META_LOG_LEVEL META_PROTOCOL_VERSION META_SERVER_INFO METHOD_NOT_FOUND PARSE_ERROR),
+  qw(SUPPORTED_VERSIONS UNSUPPORTED_PROTOCOL_VERSION);
 use MCP::Prompt;
 use MCP::Resource;
+use MCP::Server::Subscription;
 use MCP::Server::Transport::HTTP;
 use MCP::Server::Transport::Stdio;
 use MCP::Tool;
 use Scalar::Util qw(blessed);
 
-has name      => 'PerlServer';
-has prompts   => sub { [] };
-has resources => sub { [] };
-has tools     => sub { [] };
+has cache_scope => 'public';
+has cache_ttl   => 0;
+has 'instructions';
+has log           => sub { Mojo::Log->new };
+has name          => 'PerlServer';
+has prompts       => sub { [] };
+has resources     => sub { [] };
+has state_secret  => sub { random_bytes(32) };
+has state_timeout => 300;
+has tools         => sub { [] };
 has 'transport';
 has version => '1.0.0';
 
 sub handle ($self, $request, $context) {
-  return _jsonrpc_error(PARSE_ERROR, 'Invalid JSON-RPC request') unless ref $request eq 'HASH';
-  return _jsonrpc_error(INVALID_REQUEST, 'Missing JSON-RPC method') unless my $method = $request->{method};
+  return _jsonrpc_error(PARSE_ERROR,     'Invalid JSON-RPC request') unless ref $request eq 'HASH';
+  return _jsonrpc_error(INVALID_REQUEST, 'Missing JSON-RPC method')  unless $request->{method};
 
   # Requests
   if (defined(my $id = $request->{id})) {
-
-    my $token = ($request->{params} // {})->{_meta}{progressToken};
-    $context->progress_token($token) if defined $token;
-
-    if ($method eq 'initialize') {
-      my $result = $self->_handle_initialize($request->{params} // {});
-      return _jsonrpc_response($result, $id);
-    }
-    elsif ($method eq 'tools/list') {
-      my $result = $self->_handle_tools_list($context);
-      return _jsonrpc_response($result, $id);
-    }
-    elsif ($method eq 'tools/call') {
-      return $self->_handle_tools_call($request->{params} // {}, $id, $context);
-    }
-    elsif ($method eq 'ping') {
-      return _jsonrpc_response({}, $id);
-    }
-    elsif ($method eq 'prompts/list') {
-      my $result = $self->_handle_prompts_list($context);
-      return _jsonrpc_response($result, $id);
-    }
-    elsif ($method eq 'prompts/get') {
-      return $self->_handle_prompts_get($request->{params} // {}, $id, $context);
-    }
-    elsif ($method eq 'resources/list') {
-      my $result = $self->_handle_resources_list($context);
-      return _jsonrpc_response($result, $id);
-    }
-    elsif ($method eq 'resources/read') {
-      return $self->_handle_resources_read($request->{params} // {}, $id, $context);
-    }
-
-    # Method not found
-    return _jsonrpc_error(METHOD_NOT_FOUND, "Method '$method' not found", $id);
+    my $response;
+    return $self->_internal_error($context, $id, $@)
+      unless eval { $response = $self->_dispatch($request, $id, $context); 1 };
+    return $response;
   }
 
   # Notifications (ignored for now)
@@ -109,43 +88,59 @@ sub tool ($self, %args) {
   return $tool;
 }
 
-sub _handle_initialize ($self, $params) {
+sub _handle_discover ($self) {
   my $transport = $self->transport;
   my $caps      = $transport && $transport->notifications ? {listChanged => true} : {};
-  return {
-    protocolVersion => PROTOCOL_VERSION,
-    capabilities    => {prompts => $caps, resources => $caps, tools => $caps},
-    serverInfo      => {name    => $self->name, version => $self->version}
-  };
+
+  my $capabilities = {extensions => {}};
+  $capabilities->{prompts}   = $caps if @{$self->prompts};
+  $capabilities->{resources} = $caps if @{$self->resources};
+  $capabilities->{tools}     = $caps if @{$self->tools};
+
+  my $result = {supportedVersions => SUPPORTED_VERSIONS, capabilities => $capabilities};
+  if (defined(my $instructions = $self->instructions)) { $result->{instructions} = $instructions }
+  return $result;
+}
+
+sub _handle_listen ($self, $params, $id, $context) {
+  my $transport = $self->transport;
+  return MCP::Server::Subscription->new(id => $id, notifications => $params->{notifications} // {})
+    if $transport && $transport->notifications;
+  $context->status(404);
+  return _jsonrpc_error(METHOD_NOT_FOUND, "Method 'subscriptions/listen' not found", $id);
 }
 
 sub _handle_prompts_list ($self, $context) {
-  my @prompts;
-  for my $prompt (@{$self->_prompts($context)}) {
+  my $all = $self->_prompts($context);
+
+  my (@prompts, @listed);
+  for my $prompt (@$all) {
     next unless $context->has_scope(@{$prompt->scopes});
     my $info = {name => $prompt->name, description => $prompt->description, arguments => $prompt->arguments};
     push @prompts, $info;
+    push @listed,  $prompt;
   }
 
-  return {prompts => \@prompts};
+  return {prompts => \@prompts}, $self->_list_cache_hints('prompts', $all, \@listed);
 }
 
 sub _handle_prompts_get ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
-  return _jsonrpc_error(METHOD_NOT_FOUND, "Prompt '$name' not found", $id)
+  return _jsonrpc_error(INVALID_PARAMS, "Prompt '$name' not found", $id)
     unless my $prompt = first { $_->name eq $name } @{$self->_prompts($context)};
   if (my $err = $self->_check_scope($prompt, $context, $id)) { return $err }
   return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments', $id) if $prompt->validate_input($args);
+  $self->_state($context, $params, 'prompts/get', $name);
 
-  my $result = $prompt->call($args, $context);
-  return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
-  return _jsonrpc_response($result, $id);
+  return $self->_respond($prompt->call($args, $context), $id, $context);
 }
 
 sub _handle_resources_list ($self, $context) {
-  my @resources;
-  for my $resource (@{$self->_resources($context)}) {
+  my $all = $self->_resources($context);
+
+  my (@resources, @listed);
+  for my $resource (@$all) {
     next unless $context->has_scope(@{$resource->scopes});
     my $info = {
       uri         => $resource->uri,
@@ -154,63 +149,153 @@ sub _handle_resources_list ($self, $context) {
       mimeType    => $resource->mime_type
     };
     push @resources, $info;
+    push @listed,    $resource;
   }
 
-  return {resources => \@resources};
+  return {resources => \@resources}, $self->_list_cache_hints('resources', $all, \@listed);
 }
 
 sub _handle_resources_read ($self, $params, $id, $context) {
   my $uri = $params->{uri} // '';
-  return _jsonrpc_error(RESOURCE_NOT_FOUND, 'Resource not found', $id)
+  return _jsonrpc_error(INVALID_PARAMS, "Resource '$uri' not found", $id)
     unless my $resource = first { $_->uri eq $uri } @{$self->_resources($context)};
   if (my $err = $self->_check_scope($resource, $context, $id)) { return $err }
+  my $hints
+    = $self->_state($context, $params, 'resources/read', $uri)
+    ? undef
+    : _cache_hints($resource->cache_ttl, @{$resource->scopes} ? 'private' : $resource->cache_scope);
 
-  my $result = $resource->call($context);
-  return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
-  return _jsonrpc_response($result, $id);
+  return $self->_respond($resource->call($context), $id, $context, $hints);
 }
 
 sub _handle_tools_call ($self, $params, $id, $context) {
   my $name = $params->{name}      // '';
   my $args = $params->{arguments} // {};
-  return _jsonrpc_error(METHOD_NOT_FOUND, "Tool '$name' not found", $id)
+  return _jsonrpc_error(INVALID_PARAMS, "Tool '$name' not found", $id)
     unless my $tool = first { $_->name eq $name } @{$self->_tools($context)};
   if (my $err = $self->_check_scope($tool, $context, $id)) { return $err }
   return _jsonrpc_error(INVALID_PARAMS, 'Invalid arguments', $id) if $tool->validate_input($args);
+  $self->_state($context, $params, 'tools/call', $name);
 
-  my $result = $tool->call($args, $context);
-  return $result->then(sub { _jsonrpc_response($_[0], $id) }) if blessed($result) && $result->isa('Mojo::Promise');
-  return _jsonrpc_response($result, $id);
+  return $self->_respond($tool->call($args, $context), $id, $context);
 }
 
 sub _handle_tools_list ($self, $context) {
-  my @tools;
-  for my $tool (@{$self->_tools($context)}) {
+  my $all = $self->_tools($context);
+
+  my (@tools, @listed);
+  for my $tool (@$all) {
     next unless $context->has_scope(@{$tool->scopes});
     my $info = {name => $tool->name, description => $tool->description, inputSchema => $tool->input_schema};
     if (my $output_schema = $tool->output_schema) { $info->{outputSchema} = $output_schema }
 
     my $annotations = $tool->annotations;
     $info->{annotations} = $annotations if keys %$annotations;
-    push @tools, $info;
+    push @tools,  $info;
+    push @listed, $tool;
   }
 
-  return {tools => \@tools};
+  return {tools => \@tools}, $self->_list_cache_hints('tools', $all, \@listed);
+}
+
+sub _cache_hints ($ttl, $scope) { return {cacheScope => $scope, ttlMs => $ttl} }
+
+sub _check_fields ($meta, $id) {
+  my $version = $meta->{+META_PROTOCOL_VERSION};
+  return _jsonrpc_error(INVALID_PARAMS, 'Missing protocol version', $id) unless defined $version;
+  return _jsonrpc_error(UNSUPPORTED_PROTOCOL_VERSION, "Unsupported protocol version '$version'",
+    $id, {supported => SUPPORTED_VERSIONS, requested => $version})
+    unless first { $_ eq $version } @{(SUPPORTED_VERSIONS)};
+  return _jsonrpc_error(INVALID_PARAMS, 'Missing client capabilities', $id)
+    unless ref $meta->{+META_CLIENT_CAPABILITIES} eq 'HASH';
+  return undef;
+}
+
+sub _check_meta ($self, $params, $id, $context) {
+  my $meta = $params->{_meta} // {};
+
+  if (my $err = _check_fields($meta, $id)) {
+    $context->status(400);
+    return $err;
+  }
+
+  $context->protocol_version($meta->{+META_PROTOCOL_VERSION});
+  $context->client_capabilities($meta->{+META_CLIENT_CAPABILITIES});
+  if (my $info = $meta->{+META_CLIENT_INFO})       { $context->client_info($info) }
+  if (my $level = $meta->{+META_LOG_LEVEL})        { $context->log_level($level) }
+  if (defined(my $token = $meta->{progressToken})) { $context->progress_token($token) }
+
+  return undef;
 }
 
 sub _check_scope ($self, $primitive, $context, $id) {
   my $scopes = $primitive->scopes;
   return undef if $context->has_scope(@$scopes);
-  $context->insufficient_scope($scopes);
+  $context->insufficient_scope($scopes)->status(403);
   return _jsonrpc_error(INSUFFICIENT_SCOPE, 'Insufficient scope', $id);
 }
 
-sub _jsonrpc_error ($code, $message, $id = undef) {
-  return {jsonrpc => '2.0', id => $id, error => {code => $code, message => $message}};
+sub _dispatch ($self, $request, $id, $context) {
+  my $method = $request->{method};
+  my $params = $request->{params} // {};
+  if (my $err = $self->_check_meta($params, $id, $context)) { return $err }
+
+  if ($method eq 'server/discover') {
+    my $hints = _cache_hints($self->cache_ttl, $self->cache_scope);
+    return $self->_jsonrpc_response($self->_handle_discover, $id, $hints);
+  }
+  elsif ($method eq 'tools/list') {
+    my ($result, $hints) = $self->_handle_tools_list($context);
+    return $self->_jsonrpc_response($result, $id, $hints);
+  }
+  elsif ($method eq 'tools/call') {
+    return $self->_handle_tools_call($params, $id, $context);
+  }
+  elsif ($method eq 'prompts/list') {
+    my ($result, $hints) = $self->_handle_prompts_list($context);
+    return $self->_jsonrpc_response($result, $id, $hints);
+  }
+  elsif ($method eq 'prompts/get') {
+    return $self->_handle_prompts_get($params, $id, $context);
+  }
+  elsif ($method eq 'resources/list') {
+    my ($result, $hints) = $self->_handle_resources_list($context);
+    return $self->_jsonrpc_response($result, $id, $hints);
+  }
+  elsif ($method eq 'resources/read') {
+    return $self->_handle_resources_read($params, $id, $context);
+  }
+  elsif ($method eq 'subscriptions/listen') {
+    return $self->_handle_listen($params, $id, $context);
+  }
+
+  # Method not found
+  $context->status(404);
+  return _jsonrpc_error(METHOD_NOT_FOUND, "Method '$method' not found", $id);
 }
 
-sub _jsonrpc_response ($result, $id = undef) {
-  return {jsonrpc => '2.0', id => $id, result => $result};
+sub _internal_error ($self, $context, $id, $err) {
+  $self->log->error("MCP request failed: $err");
+  $context->status(500);
+  return _jsonrpc_error(INTERNAL_ERROR, 'Internal error', $id);
+}
+
+sub _jsonrpc_error ($code, $message, $id = undef, $data = undef) {
+  my $error = {code => $code, message => $message};
+  $error->{data} = $data if defined $data;
+  return {jsonrpc => '2.0', id => $id, error => $error};
+}
+
+sub _jsonrpc_response ($self, $result, $id = undef, $hints = undef) {
+  my $type = $result->{resultType} // 'complete';
+  my %new  = (%$result, ($hints && $type eq 'complete' ? %$hints : ()), resultType => $type);
+  $new{_meta} = {%{$result->{_meta} // {}}, META_SERVER_INFO() => {name => $self->name, version => $self->version}};
+  return {jsonrpc => '2.0', id => $id, result => \%new};
+}
+
+sub _list_cache_hints ($self, $event, $all, $listed) {
+  my $private = $self->has_subscribers($event) || grep { @{$_->scopes} } @$all;
+  return _cache_hints(min(map { $_->cache_ttl } @$listed) // 0, $private ? 'private' : 'public');
 }
 
 sub _prompts ($self, $context) {
@@ -223,6 +308,20 @@ sub _resources ($self, $context) {
   my $resources = [@{$self->resources}];
   $self->emit('resources', $resources, $context);
   return $resources;
+}
+
+sub _respond ($self, $result, $id, $context, $hints = undef) {
+  return $self->_jsonrpc_response($result, $id, $hints) unless blessed($result) && $result->isa('Mojo::Promise');
+  return $result->then(sub { $self->_jsonrpc_response($_[0], $id, $hints) })
+    ->catch(sub { $self->_internal_error($context, $id, $_[0]) });
+}
+
+sub _state ($self, $context, $params, @binding) {
+  $context->state_binding(join "\0", @binding)->state_secret($self->state_secret);
+  $context->state_timeout($self->state_timeout);
+  $context->input_responses($params->{inputResponses}) if ref $params->{inputResponses} eq 'HASH';
+  $context->raw_request_state($params->{requestState}) if defined $params->{requestState};
+  return $context->input_responses || defined $context->raw_request_state ? 1 : 0;
 }
 
 sub _tools ($self, $context) {
@@ -304,6 +403,45 @@ Emitted whenever the list of tools is accessed.
 
 L<MCP::Server> implements the following attributes.
 
+=head2 cache_scope
+
+  my $scope = $server->cache_scope;
+  $server   = $server->cache_scope('private');
+
+Cache scope advertised for C<server/discover> results, either C<public> or C<private>. Defaults to C<public>. Cache
+hints for the other cacheable results are declared per primitive with L<MCP::Primitive/"cache_scope">.
+
+=head2 cache_ttl
+
+  my $ttl = $server->cache_ttl;
+  $server = $server->cache_ttl(3_600_000);
+
+How long C<server/discover> results may be cached, in milliseconds. Defaults to C<0>, which means the document must
+be revalidated on every request.
+
+=head2 instructions
+
+  my $instructions = $server->instructions;
+  $server          = $server->instructions('Use the echo tool to repeat text.');
+
+Free-form guidance for the model on how to use this server, returned by C<server/discover>. Omitted from the
+document when C<undef>, which is the default.
+
+=head2 log
+
+  my $log = $server->log;
+  $server = $server->log(Mojo::Log->new);
+
+Where exceptions thrown by prompts, resources, and tools are reported, defaults to a L<Mojo::Log> object writing to
+C<STDERR>, which is where an MCP host collects the output of a stdio server.
+
+A server mounted in a L<Mojolicious> application with L</"to_action"> adopts the log of that application on its
+first request, so exceptions end up wherever the rest of the application logs, with the same level and format. Set
+this attribute yourself to opt out of that.
+
+The caller never sees the exception itself, only an C<InternalError>, since it can easily contain file system paths
+or connection strings.
+
 =head2 name
 
   my $name = $server->name;
@@ -324,6 +462,26 @@ An array reference containing registered prompts.
   $server      = $server->resources([MCP::Resource->new]);
 
 An array reference containing registered resources.
+
+=head2 state_secret
+
+  my $secret = $server->state_secret;
+  $server    = $server->state_secret($ENV{MY_MCP_SECRET});
+
+Key used to authenticate the request state of C<input_required> results, which travels through the client and has to
+be tamper proof. Defaults to 32 random bytes generated once per process.
+
+That default is only correct for a single process. Under a pre-forking web server or behind a load balancer every
+worker mints state the others reject, so retries loop instead of completing, and you have to configure the same
+secret everywhere. Use at least 32 bytes from a cryptographically secure source, and keep it out of your code.
+
+=head2 state_timeout
+
+  my $seconds = $server->state_timeout;
+  $server     = $server->state_timeout(60);
+
+How long the request state of an C<input_required> result stays valid, in seconds. Defaults to C<300>, and should be
+no longer than a client plausibly needs to gather the requested input.
 
 =head2 tools
 
@@ -348,13 +506,15 @@ The version of the server.
 
 =head1 METHODS
 
-L<MCP::Tool> inherits all methods from L<Mojo::EventEmitter> and implements the following new ones.
+L<MCP::Server> inherits all methods from L<Mojo::EventEmitter> and implements the following new ones.
 
 =head2 handle
 
   my $response = $server->handle($request, $context);
 
-Handle a JSON-RPC request and return a response.
+Handle a JSON-RPC request and return a response, which may also be a L<Mojo::Promise>. A C<subscriptions/listen>
+request yields an L<MCP::Server::Subscription> object instead, which the transport turns into a notification
+stream. Notifications yield C<undef>.
 
 =head2 notify_list_changed
 
@@ -403,8 +563,8 @@ Register a new resource with the server.
   my $action = $server->to_action({streaming => 1});
 
 Convert the server to a L<Mojolicious> action. Any options are passed through to the constructor of
-L<MCP::Server::Transport::HTTP>; in particular, C<< streaming => 1 >> opts in to the server-to-client SSE stream
-and explicit session termination.
+L<MCP::Server::Transport::HTTP>; in particular, C<< streaming => 1 >> opts in to C<subscriptions/listen>, the
+long-lived notification stream.
 
 =head2 to_stdio
 

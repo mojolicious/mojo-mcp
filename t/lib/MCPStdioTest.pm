@@ -26,6 +26,12 @@ sub request ($self, $method, $params) {
   return $self->read_line;
 }
 
+sub send ($self, $request) {
+  $self->{timeout}->start(60);
+  $self->{stdin} .= encode_json($request) . "\n";
+  return $self->read_line;
+}
+
 sub send_request ($self, $method, $params) {
   $self->{timeout}->start(60);
   $self->{stdin} .= encode_json($self->client->build_request($method, $params)) . "\n";

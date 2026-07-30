@@ -5,7 +5,7 @@ use Test::More;
 use Mojolicious::Lite;
 use Test::Mojo;
 use MCP::Client;
-use MCP::Constants qw(PROTOCOL_VERSION);
+use MCP::Constants qw(META_CLIENT_CAPABILITIES META_PROTOCOL_VERSION PROTOCOL_VERSION);
 use MCP::Server;
 
 my $server = MCP::Server->new;
@@ -114,16 +114,16 @@ subtest 'Discovery' => sub {
 subtest 'Read-only token' => sub {
   my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'),
     headers => {Authorization => 'Bearer ro'});
-  $client->initialize_session;
 
   subtest 'Tools' => sub {
     my $result = $client->list_tools;
     is $result->{tools}[0]{name}, 'read_tool', 'read tool present';
     is $result->{tools}[1],       undef,       'no more tools';
+    is $result->{cacheScope},     'private',   'scope restricted list is private';
 
     is $client->call_tool('read_tool')->{content}[0]{text}, 'Read result', 'read tool call result';
     eval { $client->call_tool('write_tool') };
-    like $@, qr/403 response/, 'write tool denied';
+    like $@, qr/Error -32003: Insufficient scope/, 'write tool denied';
   };
 
   subtest 'Prompts' => sub {
@@ -133,7 +133,7 @@ subtest 'Read-only token' => sub {
 
     is $client->get_prompt('read_prompt')->{messages}[0]{content}{text}, 'Read prompt', 'read prompt result';
     eval { $client->get_prompt('write_prompt') };
-    like $@, qr/403 response/, 'write prompt denied';
+    like $@, qr/Error -32003: Insufficient scope/, 'write prompt denied';
   };
 
   subtest 'Resources' => sub {
@@ -143,14 +143,13 @@ subtest 'Read-only token' => sub {
 
     is $client->read_resource('file:///read')->{contents}[0]{text}, 'Read resource', 'read resource result';
     eval { $client->read_resource('file:///write') };
-    like $@, qr/403 response/, 'write resource denied';
+    like $@, qr/Error -32003: Insufficient scope/, 'write resource denied';
   };
 };
 
 subtest 'Read-write token' => sub {
   my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'),
     headers => {Authorization => 'Bearer rw'});
-  $client->initialize_session;
 
   subtest 'Tools' => sub {
     my $result = $client->list_tools;
@@ -160,7 +159,7 @@ subtest 'Read-write token' => sub {
 
     is $client->call_tool('write_tool')->{content}[0]{text}, 'Write result', 'write tool call result';
     eval { $client->call_tool('custom_tool') };
-    like $@, qr/Error -32601/, 'custom tool hidden by role';
+    like $@, qr/Error -32602/, 'custom tool hidden by role';
   };
 
   subtest 'Prompts' => sub {
@@ -188,7 +187,6 @@ subtest 'Admin token' => sub {
     url     => $t->ua->server->url->path('/mcp'),
     headers => {Authorization => 'Bearer admin'}
   );
-  $client->initialize_session;
 
   my $result = $client->list_tools;
   is $result->{tools}[0]{name}, 'read_tool',   'read tool present';
@@ -200,17 +198,20 @@ subtest 'Admin token' => sub {
 };
 
 subtest 'Insufficient scope challenge' => sub {
-  my $init = {
+  my $meta = {META_CLIENT_CAPABILITIES() => {}, META_PROTOCOL_VERSION() => PROTOCOL_VERSION};
+  my $call = {
     jsonrpc => '2.0',
     id      => 1,
-    method  => 'initialize',
-    params  => {protocolVersion => PROTOCOL_VERSION, capabilities => {}, clientInfo => {name => 't', version => '1'}}
+    method  => 'tools/call',
+    params  => {name => 'write_tool', arguments => {}, _meta => $meta}
   };
-  $t->post_ok('/mcp' => {Authorization => 'Bearer ro'} => json => $init)->status_is(200);
-  my $session_id = $t->tx->res->headers->header('Mcp-Session-Id');
-
-  my $call = {jsonrpc => '2.0', id => 2, method => 'tools/call', params => {name => 'write_tool', arguments => {}}};
-  $t->post_ok('/mcp' => {Authorization => 'Bearer ro', 'Mcp-Session-Id' => $session_id} => json => $call)
+  my $headers = {
+    Authorization          => 'Bearer ro',
+    'MCP-Protocol-Version' => PROTOCOL_VERSION,
+    'Mcp-Method'           => 'tools/call',
+    'Mcp-Name'             => 'write_tool'
+  };
+  $t->post_ok('/mcp' => $headers => json => $call)
     ->status_is(403)
     ->header_like('WWW-Authenticate' => qr/error="insufficient_scope"/)
     ->header_like('WWW-Authenticate' => qr/scope="mcp:write"/);

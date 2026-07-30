@@ -23,9 +23,9 @@ $server->tool(
 );
 $server->on(
   tools => sub ($server, $tools, $context) {
-    my $role = $context->{controller}->stash('role');
+    my $role = $context->controller->stash('role');
     return if $role eq 'admin';
-    @$tools = grep { $_->{name} ne 'admin_tool' } @$tools;
+    @$tools = grep { $_->name ne 'admin_tool' } @$tools;
   }
 );
 
@@ -43,9 +43,9 @@ $server->prompt(
 );
 $server->on(
   prompts => sub ($server, $prompts, $context) {
-    my $role = $context->{controller}->stash('role');
+    my $role = $context->controller->stash('role');
     return if $role eq 'admin';
-    @$prompts = grep { $_->{name} ne 'admin_prompt' } @$prompts;
+    @$prompts = grep { $_->name ne 'admin_prompt' } @$prompts;
   }
 );
 
@@ -63,9 +63,9 @@ $server->resource(
 );
 $server->on(
   resources => sub ($server, $resources, $context) {
-    my $role = $context->{controller}->stash('role');
+    my $role = $context->controller->stash('role');
     return if $role eq 'admin';
-    @$resources = grep { $_->{uri} ne 'file:///admin_resource' } @$resources;
+    @$resources = grep { $_->uri ne 'file:///admin_resource' } @$resources;
   }
 );
 
@@ -89,13 +89,13 @@ subtest 'Normal HTTP endpoint' => sub {
 subtest 'MCP endpoint' => sub {
   subtest 'Admin user' => sub {
     my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp')->query(role => 'admin'));
-    $client->initialize_session;
 
     subtest 'Tools' => sub {
       my $result = $client->list_tools;
       is $result->{tools}[0]{name}, 'user_tool',  'user tool present';
       is $result->{tools}[1]{name}, 'admin_tool', 'admin tool present';
       is $result->{tools}[2],       undef,        'no more tools';
+      is $result->{cacheScope},     'private',    'per caller list is private';
 
       my $user_result = $client->call_tool('user_tool');
       is $user_result->{content}[0]{text}, 'Hello user!', 'user tool call result';
@@ -130,7 +130,6 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'Normal user' => sub {
     my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp')->query(role => 'user'));
-    $client->initialize_session;
 
     subtest 'Tools' => sub {
       my $result = $client->list_tools;
@@ -140,7 +139,7 @@ subtest 'MCP endpoint' => sub {
       my $user_result = $client->call_tool('user_tool');
       is $user_result->{content}[0]{text}, 'Hello user!', 'user tool call result';
       eval { $client->call_tool('admin_tool', {}) };
-      like $@, qr/Error -32601: Tool 'admin_tool' not found/, 'right error';
+      like $@, qr/Error -32602: Tool 'admin_tool' not found/, 'right error';
     };
 
     subtest 'Prompts' => sub {
@@ -151,7 +150,7 @@ subtest 'MCP endpoint' => sub {
       my $user_prompt = $client->get_prompt('user_prompt');
       is $user_prompt->{messages}[0]{content}{text}, 'This is a user prompt', 'user prompt result';
       eval { $client->get_prompt('admin_prompt') };
-      like $@, qr/Error -32601: Prompt 'admin_prompt' not found/, 'right error';
+      like $@, qr/Error -32602: Prompt 'admin_prompt' not found/, 'right error';
     };
 
     subtest 'Resources' => sub {
@@ -162,7 +161,7 @@ subtest 'MCP endpoint' => sub {
       my $user_resource = $client->read_resource('file:///user_resource');
       is $user_resource->{contents}[0]{text}, 'User resource content', 'user resource result';
       eval { $client->read_resource('file:///admin_resource') };
-      like $@, qr/Error -32002: Resource not found/, 'right error';
+      like $@, qr{Error -32602: Resource 'file:///admin_resource' not found}, 'right error';
     };
   };
 };

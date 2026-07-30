@@ -7,7 +7,7 @@ use Mojo::ByteStream qw(b);
 use Mojo::File       qw(curfile);
 use Mojo::JSON       qw(from_json true false);
 use MCP::Client;
-use MCP::Constants qw(PROTOCOL_VERSION);
+use MCP::Constants qw(META_SERVER_INFO PROTOCOL_VERSION);
 use MCP::Server;
 
 my $t = Test::Mojo->new(curfile->sibling('apps', 'lite_app.pl'));
@@ -28,29 +28,26 @@ subtest 'MCP endpoint' => sub {
 
   my $client = MCP::Client->new(ua => $t->ua, url => $t->ua->server->url->path('/mcp'));
 
-  subtest 'Initialize session' => sub {
-    is $client->session_id, undef, 'no session id';
-    my $result = $client->initialize_session;
-    is $result->{protocolVersion},     PROTOCOL_VERSION, 'protocol version';
-    is $result->{serverInfo}{name},    'PerlServer',     'server name';
-    is $result->{serverInfo}{version}, '1.0.0',          'server version';
-    ok $result->{capabilities},                                 'has capabilities';
-    ok $result->{capabilities}{prompts},                        'has prompts capability';
-    ok $result->{capabilities}{resources},                      'has resources capability';
-    ok $result->{capabilities}{tools},                          'has tools capability';
-    ok !exists $result->{capabilities}{tools}{listChanged},     'no listChanged for tools';
-    ok !exists $result->{capabilities}{prompts}{listChanged},   'no listChanged for prompts';
-    ok !exists $result->{capabilities}{resources}{listChanged}, 'no listChanged for resources';
-    ok $client->session_id,                                     'session id set';
-  };
-
-  subtest 'Ping' => sub {
-    my $result = $client->ping;
-    is_deeply $result, {}, 'ping response';
+  subtest 'Discovery' => sub {
+    my $result = $client->discover;
+    is_deeply $result->{supportedVersions}, [PROTOCOL_VERSION], 'supported versions';
+    is_deeply $result->{capabilities}{extensions}, {}, 'no extensions';
+    is_deeply $result->{capabilities}{prompts},    {}, 'no listChanged for prompts';
+    is_deeply $result->{capabilities}{resources},  {}, 'no listChanged for resources';
+    is_deeply $result->{capabilities}{tools},      {}, 'no listChanged for tools';
+    is $result->{instructions},                      undef,        'no instructions';
+    is $result->{resultType},                        'complete',   'result type';
+    is $result->{cacheScope},                        'public',     'cache scope';
+    is $result->{ttlMs},                             0,            'cache ttl';
+    is $result->{_meta}{+META_SERVER_INFO}{name},    'PerlServer', 'server name';
+    is $result->{_meta}{+META_SERVER_INFO}{version}, '1.0.0',      'server version';
   };
 
   subtest 'List tools' => sub {
     my $result = $client->list_tools;
+    is $result->{resultType},            'complete',            'result type';
+    is $result->{cacheScope},            'public',              'cache scope';
+    is $result->{ttlMs},                 0,                     'cache ttl';
     is $result->{tools}[0]{name},        'echo',                'tool name';
     is $result->{tools}[0]{description}, 'Echo the input text', 'tool description';
     is_deeply $result->{tools}[0]{inputSchema},
@@ -113,6 +110,10 @@ subtest 'MCP endpoint' => sub {
   subtest 'Tool call' => sub {
     my $result = $client->call_tool('echo', {msg => 'hello mojo'});
     is $result->{content}[0]{text}, 'Echo: hello mojo', 'tool call result';
+    is $result->{resultType},       'complete',         'result type';
+    is $result->{cacheScope},       undef,              'no cache scope';
+    is $result->{ttlMs},            undef,              'no cache ttl';
+    is_deeply $result->{_meta}{+META_SERVER_INFO}, {name => 'PerlServer', version => '1.0.0'}, 'server info';
   };
 
   subtest 'Tool call (async)' => sub {
@@ -192,7 +193,7 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'Invalid tool name' => sub {
     eval { $client->call_tool('unknownTool', {}) };
-    like $@, qr/Error -32601: Tool 'unknownTool' not found/, 'right error';
+    like $@, qr/Error -32602: Tool 'unknownTool' not found/, 'right error';
   };
 
   subtest 'Invalid tool arguments' => sub {
@@ -202,6 +203,8 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'List prompts' => sub {
     my $result = $client->list_prompts;
+    is $result->{cacheScope},              'public',                 'cache scope';
+    is $result->{ttlMs},                   0,                        'cache ttl';
     is $result->{prompts}[0]{name},        'time',                   'prompt name';
     is $result->{prompts}[0]{description}, 'Tell the user the time', 'prompt description';
     is_deeply $result->{prompts}[0]{arguments}, [], 'no prompt arguments';
@@ -249,7 +252,7 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'Invalid prompt name' => sub {
     eval { $client->get_prompt('unknownPrompt', {}) };
-    like $@, qr/Error -32601: Prompt 'unknownPrompt' not found/, 'right error';
+    like $@, qr/Error -32602: Prompt 'unknownPrompt' not found/, 'right error';
   };
 
   subtest 'Invalid prompt arguments' => sub {
@@ -259,6 +262,8 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'List resources' => sub {
     my $result = $client->list_resources;
+    is $result->{cacheScope},                'public',                        'cache scope';
+    is $result->{ttlMs},                     0,                               'cache ttl';
     is $result->{resources}[0]{name},        'static_text',                   'resource name';
     is $result->{resources}[0]{description}, 'A static text resource',        'resource description';
     is $result->{resources}[0]{uri},         'file:///path/to/static.txt',    'resource uri';
@@ -276,6 +281,9 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'Read resource (text)' => sub {
     my $result = $client->read_resource('file:///path/to/static.txt');
+    is $result->{resultType},            'complete',                        'result type';
+    is $result->{cacheScope},            'public',                          'cache scope';
+    is $result->{ttlMs},                 0,                                 'cache ttl';
     is $result->{contents}[0]{uri},      'file:///path/to/static.txt',      'resource uri';
     is $result->{contents}[0]{mimeType}, 'text/plain',                      'resource mime type';
     is $result->{contents}[0]{text},     'This is a static text resource.', 'resource text';
@@ -297,7 +305,7 @@ subtest 'MCP endpoint' => sub {
 
   subtest 'Invalid resource uri' => sub {
     eval { $client->read_resource('file://whatever') };
-    like $@, qr/Error -32002: Resource not found/, 'right error';
+    like $@, qr{Error -32602: Resource 'file://whatever' not found}, 'right error';
   };
 };
 

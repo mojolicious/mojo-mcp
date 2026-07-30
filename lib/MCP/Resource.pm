@@ -28,7 +28,7 @@ sub text_resource ($self, $text) {
 }
 
 sub _type_check ($self, $result) {
-  return $result if ref $result eq 'HASH' && exists $result->{contents};
+  return $result if ref $result eq 'HASH' && (exists $result->{contents} || exists $result->{resultType});
   return $self->text_resource($result);
 }
 
