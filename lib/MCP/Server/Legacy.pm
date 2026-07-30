@@ -1,30 +1,46 @@
 package MCP::Server::Legacy;
 use Mojo::Base 'Exporter', -signatures;
 
-use MCP::Constants qw(LEGACY_VERSION META_PROTOCOL_VERSION);
+use MCP::Constants qw(META_PROTOCOL_VERSION);
 
 our @EXPORT_OK = qw(legacy_context legacy_request legacy_result);
 
+my @VERSIONS = ('2024-10-07', '2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25');
+
 sub legacy_context ($params, $context) {
   my $meta = $params->{_meta} // {};
-  $context->client_capabilities({})->client_info({})->protocol_version(LEGACY_VERSION);
+  $context->client_capabilities({})->client_info({})->protocol_version($context->legacy);
   $context->progress_token($meta->{progressToken}) if defined $meta->{progressToken};
   return $context;
 }
 
 sub legacy_request ($version, $request) {
-  return 1 if ($request->{method} // '') eq 'initialize';
-  return 0 unless defined $version && $version eq LEGACY_VERSION;
-  return ($request->{params} // {})->{_meta}{+META_PROTOCOL_VERSION} ? 0 : 1;
+  my $params = $request->{params} // {};
+
+  # The handshake exists only in legacy revisions, so answer it with the closest version we can serve
+  if (($request->{method} // '') eq 'initialize') {
+    my $requested = $params->{protocolVersion} // '';
+    return (grep { $_ eq $requested } @VERSIONS) ? $requested : $VERSIONS[-1];
+  }
+
+  return undef if $params->{_meta}{+META_PROTOCOL_VERSION};
+  return $VERSIONS[-1] unless defined $version;
+  return (grep { $_ eq $version } @VERSIONS) ? $version : undef;
 }
 
-sub legacy_result ($server, $method) {
+sub legacy_result ($server, $method, $version) {
   return {} if $method eq 'ping';
   return undef unless $method eq 'initialize';
+
+  my $capabilities = {};
+  $capabilities->{prompts}   = {} if @{$server->prompts};
+  $capabilities->{resources} = {} if @{$server->resources};
+  $capabilities->{tools}     = {} if @{$server->tools};
+
   return {
-    protocolVersion => LEGACY_VERSION,
-    capabilities    => {prompts => {}, resources => {}, tools => {}},
-    serverInfo      => {name    => $server->name, version => $server->version}
+    protocolVersion => $version,
+    capabilities    => $capabilities,
+    serverInfo      => {name => $server->name, version => $server->version}
   };
 }
 
@@ -34,20 +50,20 @@ sub legacy_result ($server, $method) {
 
 =head1 NAME
 
-MCP::Server::Legacy - Fallback for clients speaking the previous protocol version
+MCP::Server::Legacy - Fallback for clients speaking a previous protocol version
 
 =head1 SYNOPSIS
 
   use MCP::Server::Legacy qw(legacy_request);
 
-  my $bool = legacy_request('2025-11-25', {jsonrpc => '2.0', id => 1, method => 'tools/call'});
+  my $version = legacy_request('2025-11-25', {jsonrpc => '2.0', id => 1, method => 'tools/call'});
 
 =head1 DESCRIPTION
 
-L<MCP::Server::Legacy> answers the C<initialize> handshake of L<MCP::Constants/"LEGACY_VERSION"> clients, so they can
-still list and call tools, prompts and resources while the ecosystem catches up with
-L<MCP::Constants/"PROTOCOL_VERSION">. Nothing beyond that is supported, in particular no notifications and no
-multi round-trip requests. It is a temporary convenience and will be removed again in a future release.
+L<MCP::Server::Legacy> answers the C<initialize> handshake of clients speaking a protocol revision older than
+L<MCP::Constants/"PROTOCOL_VERSION">, so they can still list and call tools, prompts and resources while the
+ecosystem catches up. Nothing beyond that is supported, in particular no notifications and no multi round-trip
+requests. It is a temporary convenience and will be removed again in a future release.
 
 =head1 FUNCTIONS
 
@@ -61,17 +77,21 @@ Populate an L<MCP::Server::Context> with the values a current request would have
 
 =head2 legacy_request
 
-  my $bool = legacy_request($version, $request);
+  my $version = legacy_request($version, $request);
 
-Check if a request is made with L<MCP::Constants/"LEGACY_VERSION">, based on the C<MCP-Protocol-Version> header and
-the JSON-RPC request. A request carrying C<_meta.io.modelcontextprotocol/protocolVersion> is never legacy, whatever
-the header says, so a current client with a misconfigured header still gets a proper error.
+The protocol revision a request was made with, or C<undef> if it is not legacy, based on the
+C<MCP-Protocol-Version> header and the JSON-RPC request. A request carrying
+C<_meta.io.modelcontextprotocol/protocolVersion> is never legacy, whatever the header says, so a current client with
+a misconfigured header still gets a proper error. Revisions before C<2025-06-18> predate the header, so a request
+without one is assumed to be legacy.
 
 =head2 legacy_result
 
-  my $result = legacy_result($server, $method);
+  my $result = legacy_result($server, $method, $version);
 
-The result for a C<initialize> or C<ping> request, or C<undef> for every other method.
+The result for a C<initialize> or C<ping> request, or C<undef> for every other method. The handshake echoes the
+requested protocol revision and advertises the same primitives as C<server/discover>, but never C<listChanged>,
+since list change notifications are not supported.
 
 =head1 SEE ALSO
 

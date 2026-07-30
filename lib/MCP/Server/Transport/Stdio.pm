@@ -17,7 +17,7 @@ sub handle_requests ($self) {
   STDOUT->autoflush(1);
 
   my $buffer = '';
-  my $legacy = 0;
+  my $legacy = undef;
   while (defined(my $input = _read_line(\$buffer))) {
     next if $input eq '';
     my $request = eval { decode_json($input) };

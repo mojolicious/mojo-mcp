@@ -172,10 +172,11 @@ C<insufficient_scope> challenge. C<undef> when no scope check failed.
 
 =head2 legacy
 
-  my $bool = $context->legacy;
-  $context = $context->legacy(1);
+  my $version = $context->legacy;
+  $context    = $context->legacy('2025-11-25');
 
-True for a request made with L<MCP::Constants/"LEGACY_VERSION">, see L<MCP::Server::Legacy>.
+The protocol revision a legacy request was made with, or C<undef> for a current request, see
+L<MCP::Server::Legacy>.
 
 =head2 log_level
 

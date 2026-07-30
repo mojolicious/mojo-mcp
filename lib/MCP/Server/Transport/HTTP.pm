@@ -154,7 +154,7 @@ sub _handle_post ($self, $c) {
   return $self->_handle_request($c, $data, $legacy);
 }
 
-sub _handle_request ($self, $c, $data, $legacy = 0) {
+sub _handle_request ($self, $c, $data, $legacy = undef) {
   my $info    = $c->stash('mcp.auth') // {};
   my $context = MCP::Server::Context->new(
     controller => $c,

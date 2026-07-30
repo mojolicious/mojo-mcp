@@ -241,8 +241,8 @@ sub _dispatch ($self, $request, $id, $context) {
   my $params = $request->{params} // {};
 
   # Legacy
-  if ($context->legacy) {
-    if (my $result = legacy_result($self, $method)) { return $self->_jsonrpc_response($result, $id) }
+  if (my $version = $context->legacy) {
+    if (my $result = legacy_result($self, $method, $version)) { return $self->_jsonrpc_response($result, $id) }
     legacy_context($params, $context);
   }
   elsif (my $err = $self->_check_meta($params, $id, $context)) { return $err }

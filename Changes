@@ -9,10 +9,10 @@
   - Removed initialize_session, delete_session, ping, and session_id from MCP::Client.
   - Removed the ping method and the RESOURCE_NOT_FOUND constant. Prompts, resources, and tools that were not found
     now use INVALID_PARAMS, and unknown methods are answered with status 404.
-  - Added MCP::Server::Legacy, a temporary fallback that answers the initialize handshake of the previous protocol
-    revision, so clients that have not been updated yet can still list and call tools, prompts, and resources. It
-    also adds the LEGACY_VERSION constant, and a legacy attribute to MCP::Server::Context, and will be removed again
-    in a future release.
+  - Added MCP::Server::Legacy, a temporary fallback that answers the initialize handshake of protocol revisions
+    older than 2026-07-28, so clients that have not been updated yet can still list and call tools, prompts, and
+    resources. It also adds a legacy attribute to MCP::Server::Context, and will be removed again in a future
+    release.
   - Added the server/discover method, which replaces initialize, and an instructions attribute to MCP::Server.
   - Added a discover method to MCP::Client.
   - Added subscriptions/listen, which replaces the GET stream and resources/subscribe, to both transports.

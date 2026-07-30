@@ -4,8 +4,8 @@ use Test::More;
 
 use Mojolicious::Lite;
 use Test::Mojo;
-use MCP::Constants qw(HEADER_MISMATCH LEGACY_VERSION META_CLIENT_CAPABILITIES META_PROTOCOL_VERSION),
-  qw(METHOD_NOT_FOUND PROTOCOL_VERSION);
+use MCP::Constants qw(HEADER_MISMATCH META_CLIENT_CAPABILITIES META_PROTOCOL_VERSION METHOD_NOT_FOUND),
+  qw(PROTOCOL_VERSION);
 use MCP::Server;
 use Mojo::File qw(curfile);
 use lib curfile->dirname->child('lib')->to_string;
@@ -25,22 +25,31 @@ $server->prompt(
 );
 $server->resource(uri => 'file:///readme', name => 'readme', code => sub ($resource) {'Read me'});
 
-any '/mcp' => $server->to_action;
+my $minimal = MCP::Server->new(name => 'MinimalServer', version => '1.0.0');
+$minimal->tool(name => 'noop', input_schema => {type => 'object'}, code => sub ($tool, $args) {'ok'});
+
+any '/mcp'     => $server->to_action;
+any '/minimal' => $minimal->to_action;
 
 my $t = Test::Mojo->new;
 
 sub legacy ($id, $method, $params = {}) {
   my $body = {jsonrpc => '2.0', id => $id, method => $method, params => $params};
-  return $t->post_ok('/mcp' => {'MCP-Protocol-Version' => LEGACY_VERSION} => json => $body);
+  return $t->post_ok('/mcp' => {'MCP-Protocol-Version' => '2025-11-25'} => json => $body);
 }
 
 subtest 'Handshake' => sub {
-  my $params = {protocolVersion => LEGACY_VERSION, capabilities => {}, clientInfo => {name => 'Old', version => '1'}};
+  my $params = {protocolVersion => '2025-11-25', capabilities => {}, clientInfo => {name => 'Old', version => '1'}};
   $t->post_ok('/mcp' => json => {jsonrpc => '2.0', id => 1, method => 'initialize', params => $params})
     ->status_is(200)
-    ->json_is('/result/protocolVersion' => LEGACY_VERSION)
+    ->json_is('/result/protocolVersion' => '2025-11-25')
     ->json_is('/result/serverInfo/name' => 'LegacyServer')
+    ->json_is('/result/capabilities'    => {prompts => {}, resources => {}, tools => {}})
     ->json_hasnt('/result/capabilities/tools/listChanged');
+
+  $t->post_ok('/minimal' => json => {jsonrpc => '2.0', id => 1, method => 'initialize', params => $params})
+    ->status_is(200)
+    ->json_is('/result/capabilities' => {tools => {}});
 
   $t->post_ok('/mcp' => json => {jsonrpc => '2.0', method => 'notifications/initialized'})->status_is(202);
 
@@ -76,9 +85,27 @@ subtest 'Prompts and resources' => sub {
 subtest 'No routing headers required' => sub {
   my $body
     = {jsonrpc => '2.0', id => 10, method => 'tools/call', params => {name => 'echo', arguments => {msg => 'x'}}};
-  $t->post_ok('/mcp' => {'MCP-Protocol-Version' => LEGACY_VERSION} => json => $body)
+  $t->post_ok('/mcp' => {'MCP-Protocol-Version' => '2025-11-25'} => json => $body)
     ->status_is(200)
     ->json_is('/result/content/0/text' => 'Echo: x');
+};
+
+subtest 'Older revisions' => sub {
+  for my $version ('2024-11-05', '2025-03-26', '2025-06-18') {
+    my $params = {protocolVersion => $version, capabilities => {}, clientInfo => {name => 'Old', version => '1'}};
+    $t->post_ok('/mcp' => json => {jsonrpc => '2.0', id => 20, method => 'initialize', params => $params})
+      ->status_is(200)
+      ->json_is('/result/protocolVersion' => $version);
+  }
+
+  my $params = {protocolVersion => '1999-01-01', capabilities => {}};
+  $t->post_ok('/mcp' => json => {jsonrpc => '2.0', id => 21, method => 'initialize', params => $params})
+    ->status_is(200)
+    ->json_is('/result/protocolVersion' => '2025-11-25');
+
+  my $body
+    = {jsonrpc => '2.0', id => 22, method => 'tools/call', params => {name => 'echo', arguments => {msg => 'y'}}};
+  $t->post_ok('/mcp' => json => $body)->status_is(200)->json_is('/result/content/0/text' => 'Echo: y');
 };
 
 subtest 'Current clients are unaffected' => sub {
@@ -100,7 +127,7 @@ subtest 'Current clients are unaffected' => sub {
 
   $t->post_ok('/mcp' => $headers => json => {%$body, method => 'ping'})->status_is(400);
 
-  $t->post_ok('/mcp' => {%$headers, 'MCP-Protocol-Version' => LEGACY_VERSION} => json => $body)
+  $t->post_ok('/mcp' => {%$headers, 'MCP-Protocol-Version' => '2025-11-25'} => json => $body)
     ->status_is(400)
     ->json_is('/error/message' => 'MCP-Protocol-Version header does not match the request body');
 
@@ -118,9 +145,9 @@ subtest 'Stdio' => sub {
   $test->run($^X, curfile->dirname->child('apps', 'stdio.pl')->to_string);
 
   my $res = $test->send({jsonrpc => '2.0', id => 1, method => 'initialize', params => {}});
-  is $res->{id},                       1,              'request id';
-  is $res->{result}{protocolVersion},  LEGACY_VERSION, 'protocol version';
-  is $res->{result}{serverInfo}{name}, 'PerlServer',   'server name';
+  is $res->{id},                       1,            'request id';
+  is $res->{result}{protocolVersion},  '2025-11-25', 'protocol version';
+  is $res->{result}{serverInfo}{name}, 'PerlServer', 'server name';
 
   $res
     = $test->send({
