@@ -10,6 +10,7 @@ use MCP::Constants qw(INSUFFICIENT_SCOPE INTERNAL_ERROR INVALID_PARAMS INVALID_R
   qw(SUPPORTED_VERSIONS UNSUPPORTED_PROTOCOL_VERSION);
 use MCP::Prompt;
 use MCP::Resource;
+use MCP::Server::Legacy qw(legacy_context legacy_result);
 use MCP::Server::Subscription;
 use MCP::Server::Transport::HTTP;
 use MCP::Server::Transport::Stdio;
@@ -238,7 +239,13 @@ sub _check_scope ($self, $primitive, $context, $id) {
 sub _dispatch ($self, $request, $id, $context) {
   my $method = $request->{method};
   my $params = $request->{params} // {};
-  if (my $err = $self->_check_meta($params, $id, $context)) { return $err }
+
+  # Legacy
+  if ($context->legacy) {
+    if (my $result = legacy_result($self, $method)) { return $self->_jsonrpc_response($result, $id) }
+    legacy_context($params, $context);
+  }
+  elsif (my $err = $self->_check_meta($params, $id, $context)) { return $err }
 
   if ($method eq 'server/discover') {
     my $hints = _cache_hints($self->cache_ttl, $self->cache_scope);

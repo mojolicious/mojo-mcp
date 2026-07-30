@@ -5,6 +5,7 @@ use Crypt::Misc    qw(random_v4uuid);
 use List::Util     qw(first);
 use MCP::Constants qw(HEADER_MISMATCH META_PROTOCOL_VERSION);
 use MCP::Server::Context;
+use MCP::Server::Legacy qw(legacy_request);
 use MCP::Server::Subscription;
 use Mojo::IOLoop;
 use Mojo::JSON   qw(to_json);
@@ -140,20 +141,24 @@ sub _handle_post ($self, $c) {
   my $data = $c->req->json;
   return $c->render(json => {error => 'Invalid JSON'}, status => 400) unless ref $data eq 'HASH';
 
-  if (defined(my $id = $data->{id})) {
+  # Legacy
+  my $legacy = legacy_request($c->req->headers->header('MCP-Protocol-Version'), $data);
+
+  if (!$legacy && defined(my $id = $data->{id})) {
     if (my $message = $self->_check_headers($c, $data)) {
       my $error = {code => HEADER_MISMATCH, message => $message};
       return $c->render(json => {jsonrpc => '2.0', id => $id, error => $error}, status => 400);
     }
   }
 
-  return $self->_handle_request($c, $data);
+  return $self->_handle_request($c, $data, $legacy);
 }
 
-sub _handle_request ($self, $c, $data) {
+sub _handle_request ($self, $c, $data, $legacy = 0) {
   my $info    = $c->stash('mcp.auth') // {};
   my $context = MCP::Server::Context->new(
     controller => $c,
+    legacy     => $legacy,
     principal  => $info->{principal},
     scopes     => $self->_scopes($c),
     transport  => $self

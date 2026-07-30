@@ -2,6 +2,7 @@ package MCP::Server::Transport::Stdio;
 use Mojo::Base 'MCP::Server::Transport', -signatures;
 
 use MCP::Server::Context;
+use MCP::Server::Legacy qw(legacy_request);
 use MCP::Server::Subscription;
 use Mojo::JSON   qw(decode_json encode_json);
 use Scalar::Util qw(blessed);
@@ -16,12 +17,16 @@ sub handle_requests ($self) {
   STDOUT->autoflush(1);
 
   my $buffer = '';
+  my $legacy = 0;
   while (defined(my $input = _read_line(\$buffer))) {
     next if $input eq '';
     my $request = eval { decode_json($input) };
     next if $self->_cancel($request);
 
-    my $context = MCP::Server::Context->new(stream => \&_print_response, transport => $self);
+    # Legacy
+    $legacy ||= legacy_request(undef, ref $request eq 'HASH' ? $request : {});
+
+    my $context = MCP::Server::Context->new(legacy => $legacy, stream => \&_print_response, transport => $self);
     next unless my $response = $server->handle($request, $context);
 
     if    (blessed($response) && $response->isa('MCP::Server::Subscription')) { $self->_subscribe($response) }

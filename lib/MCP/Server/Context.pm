@@ -11,7 +11,7 @@ use constant LEVELS =>
   {debug => 0, info => 1, notice => 2, warning => 3, error => 4, critical => 5, alert => 6, emergency => 7};
 
 has buffer => sub { [] };
-has [qw(client_capabilities client_info controller input_responses insufficient_scope log_level principal)];
+has [qw(client_capabilities client_info controller input_responses insufficient_scope legacy log_level principal)];
 has [qw(progress_token protocol_version raw_request_state scopes state_binding state_secret)];
 has state_timeout => 300;
 has [qw(status stream transport)];
@@ -169,6 +169,13 @@ current request is not a retry. See L<MCP::Primitive/"input_required">.
 
 Array reference of scopes a denied request was missing, set by the server so the HTTP transport can emit an
 C<insufficient_scope> challenge. C<undef> when no scope check failed.
+
+=head2 legacy
+
+  my $bool = $context->legacy;
+  $context = $context->legacy(1);
+
+True for a request made with L<MCP::Constants/"LEGACY_VERSION">, see L<MCP::Server::Legacy>.
 
 =head2 log_level
 
